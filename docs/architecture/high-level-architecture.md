@@ -29,59 +29,55 @@ graph TB
         EU[AssuranceNet End Users]
     end
 
-    subgraph Azure Cloud
+    subgraph Azure Cloud - eastus2
         subgraph Frontend
-            SWA[Azure Static Web Apps<br/>React + TypeScript]
+            SWA[Azure Static Web Apps<br/>React + TypeScript + Vite]
         end
 
-        subgraph Application
-            API[Azure App Service<br/>FastAPI Python Backend]
-        end
-
-        subgraph Processing
-            EG[Azure Event Grid]
-            AF[Azure Functions<br/>PDF Converter]
-            GOT[Gotenberg Container<br/>Azure Container Apps]
+        subgraph Application - Container Apps
+            API[FastAPI Backend<br/>Container App]
+            GOT[Gotenberg 8<br/>PDF Conversion]
         end
 
         subgraph Data
-            BLOB[Azure Blob Storage<br/>Document Store]
-            SQL[Azure SQL Database<br/>Metadata + Audit]
+            BLOB[Azure Blob Storage<br/>Versioned Documents]
+            SQL[Azure SQL Database<br/>Metadata + Audit + RBAC]
         end
 
         subgraph Security
-            ENTRA[Microsoft Entra ID]
+            ENTRA[Microsoft Entra ID<br/>MSAL Auth]
             KV[Azure Key Vault]
-            MI[Managed Identities]
+            MI[Managed Identities<br/>App + Functions]
         end
 
         subgraph Monitoring
-            AI[Application Insights]
-            LA[Log Analytics Workspace]
-            EH[Azure Event Hub]
+            LAW[Log Analytics Workspace]
+            EH[Azure Event Hub<br/>Splunk Integration]
         end
-
-        FD[Azure Front Door + WAF]
     end
 
-    EU -->|HTTPS| FD
-    FD --> SWA
-    FD -->|/api/*| API
+    EU -->|HTTPS| SWA
+    EU -->|HTTPS| API
     SWA -->|MSAL Auth| ENTRA
     API -->|JWT Validation| ENTRA
     API --> BLOB
     API --> SQL
-    BLOB -->|BlobCreated| EG
-    EG --> AF
-    AF --> GOT
-    AF --> BLOB
     API --> KV
     MI -.-> BLOB
     MI -.-> SQL
     MI -.-> KV
-    AI --> LA
-    LA --> EH
+    LAW --> EH
 ```
+
+### Deployed Resources (Dev Environment)
+
+| Resource Group | Resources |
+|---|---|
+| `rg-assurancenet-app-dev` | Container App (API), Container App (Gotenberg), 2 CAE, ACR, SWA |
+| `rg-assurancenet-data-dev` | Storage Account, SQL Server + Database |
+| `rg-assurancenet-security-dev` | Key Vault, 2 Managed Identities |
+| `rg-assurancenet-monitoring-dev` | Log Analytics, Event Hub, Dashboard |
+| `rg-assurancenet-network-dev` | VNet (4 subnets), NSGs |
 
 ---
 

@@ -28,6 +28,14 @@
 
 ## 🏗️ Architecture
 
+### Live Environment (Dev)
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | https://yellow-field-05ae8b90f.2.azurestaticapps.net |
+| **Backend API** | https://ca-api-assurancenet-dev.reddune-5bb251d3.eastus2.azurecontainerapps.io |
+| **API Health** | https://ca-api-assurancenet-dev.reddune-5bb251d3.eastus2.azurecontainerapps.io/api/v1/health |
+
 ```mermaid
 flowchart LR
     subgraph Client
@@ -35,46 +43,41 @@ flowchart LR
     end
 
     subgraph Azure
-        FD["Front Door\n+ WAF"]
-        API["FastAPI\n(App Service)"]
-        FUNC["Azure Functions\n(Event Grid Trigger)"]
+        API["FastAPI\n(Container Apps)"]
         GOT["Gotenberg\n(Container Apps)"]
         BLOB["Blob Storage\n(Versioned)"]
         SQL["Azure SQL\n(Metadata + Audit)"]
         KV["Key Vault"]
         ENTRA["Entra ID\n(MSAL Auth)"]
+        MI["Managed Identity"]
     end
 
-    FE --> FD
-    FD --> API
+    FE -->|HTTPS| API
     API --> BLOB
     API --> SQL
     API --> KV
-    BLOB -->|BlobCreated| FUNC
-    FUNC --> GOT
-    FUNC --> BLOB
-    FUNC --> SQL
+    API -.->|Token Auth| MI
     FE -.->|Auth| ENTRA
     API -.->|Validate JWT| ENTRA
 
     style FE fill:#61dafb,color:#000
     style API fill:#009688,color:#fff
-    style FUNC fill:#0078d4,color:#fff
     style GOT fill:#ff9800,color:#000
     style BLOB fill:#0078d4,color:#fff
     style SQL fill:#0078d4,color:#fff
 ```
 
-| Component | Technology | Location |
-|-----------|-----------|----------|
-| **Frontend** | React 18 + TypeScript + Vite | `src/frontend/` |
-| **Backend API** | Python 3.11+ FastAPI | `src/backend/` |
-| **PDF Pipeline** | Event Grid + Azure Functions + Gotenberg | `src/functions/` |
-| **Storage** | Azure Blob Storage (versioned) | Backend services |
-| **Database** | Azure SQL (SQLAlchemy + Alembic) | `src/backend/app/db/` |
-| **Auth** | Microsoft Entra ID (MSAL) | Both frontend and backend |
-| **IaC** | Bicep modules (dev/staging/prod) | `infra/` |
-| **Compliance** | NIST 800-53 Rev 5, Splunk SIEM integration | Infrastructure layer |
+| Component | Technology | Azure Resource | Location |
+|-----------|-----------|----------------|----------|
+| **Frontend** | React 18 + TypeScript + Vite | Static Web App (`swa-assurancenet-dev`) | `src/frontend/` |
+| **Backend API** | Python 3.11+ FastAPI | Container App (`ca-api-assurancenet-dev`) | `src/backend/` |
+| **PDF Service** | Gotenberg 8 | Container App (`ca-gotenberg-dev`) | Bicep IaC |
+| **Storage** | Azure Blob Storage (versioned) | `stassurancenetdev` | Backend services |
+| **Database** | Azure SQL (SQLAlchemy + Alembic) | `sql-assurancenet-dev` / `sqldb-assurancenet-dev` | `src/backend/app/db/` |
+| **Auth** | Microsoft Entra ID (MSAL) | App Registrations (API + SPA) | Both frontend and backend |
+| **Secrets** | Azure Key Vault | `kv-assurancenet-2-dev` | Infrastructure |
+| **IaC** | Bicep modules (19 modules) | 5 resource groups | `infra/` |
+| **Monitoring** | Log Analytics + Event Hub | `law-assurancenet-dev` | `rg-assurancenet-monitoring-dev` |
 
 ---
 
@@ -205,15 +208,15 @@ az deployment sub create --location eastus \
 
 ## 🔄 CI/CD
 
-| Workflow | Trigger | Purpose |
-|---|---|---|
-| `ci.yml` | PR to main | Lint, test, security scan, Bicep validate |
-| `deploy-infra.yml` | Push to main (`infra/`) | Bicep infrastructure deployment |
-| `deploy-backend.yml` | Push to main (`src/backend/`) | API build + deploy to App Service |
-| `deploy-frontend.yml` | Push to main (`src/frontend/`) | SPA build + deploy to Static Web App |
-| `deploy-functions.yml` | Push to main (`src/functions/`) | Functions build + deploy |
-| `db-migrate.yml` | Manual dispatch | Alembic database migrations |
-| `integration-tests.yml` | Manual dispatch | Playwright E2E tests |
+| Workflow | Trigger | Purpose | Status |
+|---|---|---|---|
+| `ci.yml` | Push/PR to main | Lint, test, security scan, Bicep validate | Active |
+| `deploy-backend.yml` | Push to main (`src/backend/`) | ACR build + deploy to Container Apps | Active |
+| `deploy-frontend.yml` | Push to main (`src/frontend/`) | Vite build + deploy to Static Web App | Active |
+| `deploy-infra.yml` | Push to main (`infra/`) | Bicep infrastructure deployment | Active |
+| `deploy-functions.yml` | Push to main (`src/functions/`) | Functions build + deploy | Active |
+| `db-migrate.yml` | Manual dispatch | Alembic database migrations | Active |
+| `security-scan.yml` | Push to main | CodeQL SAST + dependency audit | Active |
 
 ---
 
@@ -257,22 +260,31 @@ az deployment sub create --location eastus \
 
 ## 🔌 API Endpoints
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `🟢 GET` | `/api/v1/health` | Liveness probe |
-| `🟢 GET` | `/api/v1/health/ready` | Readiness probe (DB + storage) |
-| `🟢 GET` | `/api/v1/investigations/` | List investigations |
-| `🔵 POST` | `/api/v1/investigations/` | Create investigation |
-| `🟢 GET` | `/api/v1/investigations/{id}` | Get investigation details |
-| `🟢 GET` | `/api/v1/investigations/{id}/documents` | List documents for investigation |
-| `🔵 POST` | `/api/v1/documents/upload` | Upload document (multipart) |
-| `🟢 GET` | `/api/v1/documents/{id}` | Get document metadata |
-| `🟢 GET` | `/api/v1/documents/{id}/download` | Download original file |
-| `🟢 GET` | `/api/v1/documents/{id}/pdf` | Download PDF version |
-| `🟢 GET` | `/api/v1/documents/{id}/versions` | List document versions |
-| `🔴 DELETE` | `/api/v1/documents/{id}` | Soft-delete document |
-| `🔵 POST` | `/api/v1/investigations/{recordId}/merge-pdf` | Merge multiple PDFs |
-| `🔵 POST` | `/api/v1/audit/logs` | Query audit logs (Admin) |
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/v1/health` | None | Liveness probe |
+| `GET` | `/api/v1/health/ready` | None | Readiness probe (DB + storage) |
+| `GET` | `/api/v1/investigations/` | `investigations.read` | List investigations (paginated) |
+| `POST` | `/api/v1/investigations/` | `investigations.create` | Create investigation |
+| `GET` | `/api/v1/investigations/{id}` | `investigations.read` | Get investigation details |
+| `PUT` | `/api/v1/investigations/{id}` | `investigations.update` | Update investigation |
+| `GET` | `/api/v1/investigations/{id}/documents` | `documents.read` | List documents for investigation |
+| `POST` | `/api/v1/documents/upload` | `documents.create` | Upload document (multipart) |
+| `POST` | `/api/v1/documents/batch-upload/{id}` | `documents.create` | Batch upload multiple files |
+| `GET` | `/api/v1/documents/{id}` | `documents.read` | Get document metadata |
+| `GET` | `/api/v1/documents/{id}/download` | `documents.download` | Download original file |
+| `GET` | `/api/v1/documents/{id}/pdf` | `documents.download` | Download PDF version |
+| `GET` | `/api/v1/documents/{id}/versions` | `documents.read` | List document versions |
+| `DELETE` | `/api/v1/documents/{id}` | `documents.delete` | Soft-delete document |
+| `POST` | `/api/v1/investigations/{recordId}/merge-pdf` | `documents.merge` | Merge multiple PDFs |
+| `POST` | `/api/v1/audit/logs` | `audit.read` | Query audit logs |
+| `GET` | `/api/v1/search/?q=` | Authenticated | Search investigations and documents |
+| `GET` | `/api/v1/explorer/browse` | `documents.read` | Browse blob storage explorer |
+| `DELETE` | `/api/v1/explorer/files` | `documents.delete` | Batch delete blob files |
+| `GET` | `/api/v1/admin/me` | Authenticated | Current user + roles + permissions |
+| `GET` | `/api/v1/admin/users` | `users.read` | List all users |
+| `GET` | `/api/v1/admin/roles` | `roles.manage` | List all roles |
+| `PUT` | `/api/v1/admin/users/{id}/roles` | `roles.manage` | Assign roles to user |
 
 ---
 
@@ -301,4 +313,4 @@ MIT
 
 ---
 
-*Last updated: 2026-03-10*
+*Last updated: 2026-03-12*
