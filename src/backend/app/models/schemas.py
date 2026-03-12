@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.models.enums import InvestigationStatus, PdfConversionStatus
 
-
 # ============================================================================
 # Investigation Schemas
 # ============================================================================

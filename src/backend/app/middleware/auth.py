@@ -160,7 +160,6 @@ def _get_current_app_user():
         claims: Annotated[UserClaims, Depends(validate_token)],
         session: Annotated[AsyncSession, Depends(get_db_session)],
     ):
-        from app.db.models import AppUser
         from app.services.rbac_service import RBACService
 
         rbac_svc = RBACService(session)

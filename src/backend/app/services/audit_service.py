@@ -2,7 +2,6 @@
 
 import json
 from datetime import datetime
-from uuid import UUID
 
 import structlog
 from sqlalchemy import func, select

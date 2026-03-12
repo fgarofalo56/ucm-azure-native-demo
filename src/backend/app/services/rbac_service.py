@@ -6,7 +6,7 @@ import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AppUser, Permission, Role, user_roles
+from app.db.models import AppUser, Role
 
 logger = structlog.get_logger()
 

@@ -1,7 +1,7 @@
 """AssuranceNet Document Management API - FastAPI entry point."""
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI

@@ -3,8 +3,8 @@
 from functools import lru_cache
 
 from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
-from azure.storage.blob import BlobServiceClient
 from azure.keyvault.secrets import SecretClient
+from azure.storage.blob import BlobServiceClient
 
 from app.config import Settings, settings
 
