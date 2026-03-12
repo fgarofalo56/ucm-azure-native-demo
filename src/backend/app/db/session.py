@@ -41,6 +41,7 @@ def _inject_azure_token(dialect, conn_rec, cargs, cparams):
 
     try:
         # Use ManagedIdentityCredential with specific client_id for user-assigned identity
+        credential: DefaultAzureCredential | ManagedIdentityCredential
         if settings.azure_client_id:
             credential = ManagedIdentityCredential(client_id=settings.azure_client_id)
         else:
