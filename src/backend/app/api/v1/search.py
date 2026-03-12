@@ -1,7 +1,5 @@
 """Global search endpoint across investigations and documents."""
 
-from typing import Annotated
-
 import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_, select
@@ -20,8 +18,8 @@ router = APIRouter()
 async def search_all(
     q: str = Query(min_length=2, max_length=200),
     type: str | None = Query(None, pattern="^(investigation|document)$"),
-    app_user: Annotated[AppUser, Depends(get_app_user)],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
+    app_user: AppUser = Depends(get_app_user),
+    session: AsyncSession = Depends(get_db_session),
 ) -> SearchResponse:
     """Search investigations and documents using SQL LIKE."""
     pattern = f"%{q}%"

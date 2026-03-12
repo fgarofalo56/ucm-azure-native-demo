@@ -28,7 +28,8 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
-    include: ["../../tests/frontend/**/*.{test,spec}.{ts,tsx}"],
+    include: ["../../tests/frontend/**/*.test.{ts,tsx}"],
+    exclude: ["../../tests/frontend/e2e/**"],
     setupFiles: [],
   },
 });
