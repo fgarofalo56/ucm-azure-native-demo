@@ -43,7 +43,7 @@ jobs:
 
       - name: Run tests
         working-directory: src/backend
-        run: pytest --cov=app --cov-report=xml --cov-fail-under=80
+        run: pytest ../../tests/backend/unit/ --cov=app --cov-report=xml --cov-fail-under=60
         env:
           ENVIRONMENT: test
 

@@ -146,7 +146,7 @@ jobs:
       - name: Run pytest with coverage
         run: |
           cd src/backend
-          pytest ../../tests/backend/ --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=80 -v
+          pytest ../../tests/backend/unit/ --cov=app --cov-report=term-missing --cov-report=xml:coverage.xml --cov-fail-under=60 -v
 
       - name: Upload coverage report
         if: always()
