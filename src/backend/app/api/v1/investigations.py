@@ -56,9 +56,9 @@ async def create_investigation(
 async def list_investigations(
     app_user: Annotated[AppUser, Depends(require_permission("investigations", "read"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    status_filter: InvestigationStatus | None = Query(None, alias="status"),  # noqa: B008
-    page: int = Query(1, ge=1),  # noqa: B008
-    page_size: int = Query(20, ge=1, le=100),  # noqa: B008
+    status_filter: InvestigationStatus | None = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse:
     """List all investigations with optional status filter."""
     metadata_svc = MetadataService(session)

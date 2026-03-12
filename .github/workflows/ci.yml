@@ -88,7 +88,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd src/frontend
-          npm install
+          npm install --force
 
       - name: Run ESLint
         run: |
@@ -173,7 +173,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd src/frontend
-          npm install
+          npm install --force
 
       - name: Run vitest with coverage
         run: |
@@ -196,7 +196,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r src/functions/requirements.txt
-          pip install pytest pytest-cov
+          pip install pytest pytest-cov pytest-asyncio
 
       - name: Run pytest
         run: |
@@ -248,7 +248,7 @@ jobs:
       - name: Audit npm dependencies
         run: |
           cd src/frontend
-          npm install --ignore-scripts
+          npm install --force --ignore-scripts
           npm audit --audit-level=high || true
 
   security-secrets:

@@ -104,11 +104,35 @@ def upgrade() -> None:
     op.bulk_insert(
         roles_table,
         [
-            {"id": 1, "name": "admin", "display_name": "Administrator", "description": "Full system access", "is_system": True},
-            {"id": 2, "name": "case_manager", "display_name": "Case Manager", "description": "Manage investigations and documents", "is_system": True},
-            {"id": 3, "name": "document_manager", "display_name": "Document Manager", "description": "Upload, manage, and merge documents", "is_system": True},
-            {"id": 4, "name": "reviewer", "display_name": "Reviewer", "description": "Read-only access with audit visibility", "is_system": True},
-            {"id": 5, "name": "viewer", "display_name": "Viewer", "description": "Basic read-only access", "is_system": True},
+            {
+                "id": 1, "name": "admin",
+                "display_name": "Administrator",
+                "description": "Full system access", "is_system": True,
+            },
+            {
+                "id": 2, "name": "case_manager",
+                "display_name": "Case Manager",
+                "description": "Manage investigations and documents",
+                "is_system": True,
+            },
+            {
+                "id": 3, "name": "document_manager",
+                "display_name": "Document Manager",
+                "description": "Upload, manage, and merge documents",
+                "is_system": True,
+            },
+            {
+                "id": 4, "name": "reviewer",
+                "display_name": "Reviewer",
+                "description": "Read-only access with audit visibility",
+                "is_system": True,
+            },
+            {
+                "id": 5, "name": "viewer",
+                "display_name": "Viewer",
+                "description": "Basic read-only access",
+                "is_system": True,
+            },
         ],
     )
 
