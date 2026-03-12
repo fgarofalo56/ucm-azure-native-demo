@@ -94,8 +94,6 @@ class AuditService:
 
         total = (await self._session.execute(count_query)).scalar() or 0
         result = await self._session.execute(
-            query.order_by(AuditLog.event_timestamp.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            query.order_by(AuditLog.event_timestamp.desc()).offset((page - 1) * page_size).limit(page_size)
         )
         return list(result.scalars().all()), total

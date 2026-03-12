@@ -24,9 +24,7 @@ def configure_telemetry() -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.JSONRenderer() if settings.is_production else structlog.dev.ConsoleRenderer(),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            _get_log_level(settings.log_level)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(_get_log_level(settings.log_level)),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(),
         cache_logger_on_first_use=True,

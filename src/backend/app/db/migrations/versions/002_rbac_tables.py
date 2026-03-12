@@ -49,9 +49,7 @@ def upgrade() -> None:
         sa.Column("action", sa.String(50), nullable=False),
         sa.Column("description", sa.String(500), nullable=True),
     )
-    op.create_index(
-        "ix_permissions_resource_action", "permissions", ["resource", "action"], unique=True
-    )
+    op.create_index("ix_permissions_resource_action", "permissions", ["resource", "action"], unique=True)
 
     # user_roles
     op.create_table(
@@ -88,9 +86,7 @@ def upgrade() -> None:
     )
 
     # Composite index for document queries
-    op.create_index(
-        "ix_documents_inv_deleted", "documents", ["investigation_id", "is_deleted"]
-    )
+    op.create_index("ix_documents_inv_deleted", "documents", ["investigation_id", "is_deleted"])
 
     # Seed roles
     roles_table = sa.table(
@@ -105,30 +101,36 @@ def upgrade() -> None:
         roles_table,
         [
             {
-                "id": 1, "name": "admin",
+                "id": 1,
+                "name": "admin",
                 "display_name": "Administrator",
-                "description": "Full system access", "is_system": True,
+                "description": "Full system access",
+                "is_system": True,
             },
             {
-                "id": 2, "name": "case_manager",
+                "id": 2,
+                "name": "case_manager",
                 "display_name": "Case Manager",
                 "description": "Manage investigations and documents",
                 "is_system": True,
             },
             {
-                "id": 3, "name": "document_manager",
+                "id": 3,
+                "name": "document_manager",
                 "display_name": "Document Manager",
                 "description": "Upload, manage, and merge documents",
                 "is_system": True,
             },
             {
-                "id": 4, "name": "reviewer",
+                "id": 4,
+                "name": "reviewer",
                 "display_name": "Reviewer",
                 "description": "Read-only access with audit visibility",
                 "is_system": True,
             },
             {
-                "id": 5, "name": "viewer",
+                "id": 5,
+                "name": "viewer",
                 "display_name": "Viewer",
                 "description": "Basic read-only access",
                 "is_system": True,

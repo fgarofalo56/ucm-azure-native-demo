@@ -92,6 +92,7 @@ class PdfMergeRequest(BaseModel):
     @classmethod
     def validate_file_ids(cls, v: list[str]) -> list[str]:
         import re
+
         uuid_re = re.compile(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$")
         for fid in v:
             if not uuid_re.match(fid):

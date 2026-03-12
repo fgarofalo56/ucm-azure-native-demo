@@ -89,9 +89,7 @@ async def assign_user_roles(
 
     updated_user = await rbac_svc.assign_roles(user_id, body.role_names)
     if not updated_user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     await audit_svc.log_event(
         event_type=AuditEventType.USER_ROLE_CHANGED,

@@ -28,13 +28,17 @@ async def search_all(
     results: list[SearchResultItem] = []
 
     if type is None or type == "investigation":
-        inv_query = select(Investigation).where(
-            or_(
-                Investigation.title.ilike(pattern),
-                Investigation.description.ilike(pattern),
-                Investigation.record_id.ilike(pattern),
+        inv_query = (
+            select(Investigation)
+            .where(
+                or_(
+                    Investigation.title.ilike(pattern),
+                    Investigation.description.ilike(pattern),
+                    Investigation.record_id.ilike(pattern),
+                )
             )
-        ).limit(20)
+            .limit(20)
+        )
         inv_result = await session.execute(inv_query)
         for inv in inv_result.scalars().all():
             results.append(
@@ -48,10 +52,14 @@ async def search_all(
             )
 
     if type is None or type == "document":
-        doc_query = select(Document).where(
-            Document.is_deleted == False,  # noqa: E712
-            Document.original_filename.ilike(pattern),
-        ).limit(20)
+        doc_query = (
+            select(Document)
+            .where(
+                Document.is_deleted == False,  # noqa: E712
+                Document.original_filename.ilike(pattern),
+            )
+            .limit(20)
+        )
         doc_result = await session.execute(doc_query)
         for doc in doc_result.scalars().all():
             results.append(

@@ -52,9 +52,7 @@ class AppUser(Base):
 
     roles: Mapped[list["Role"]] = relationship(secondary=user_roles, lazy="selectin")
 
-    __table_args__ = (
-        Index("ix_app_users_entra_oid", "entra_oid"),
-    )
+    __table_args__ = (Index("ix_app_users_entra_oid", "entra_oid"),)
 
 
 class Role(Base):
@@ -77,9 +75,7 @@ class Permission(Base):
     action: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str | None] = mapped_column(String(500))
 
-    __table_args__ = (
-        Index("ix_permissions_resource_action", "resource", "action", unique=True),
-    )
+    __table_args__ = (Index("ix_permissions_resource_action", "resource", "action", unique=True),)
 
 
 class Investigation(Base):

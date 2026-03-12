@@ -90,9 +90,7 @@ class BlobService:
         logger.info("blob_downloaded", blob_path=blob_path, size_bytes=len(data))
         return data
 
-    async def stream_blob(
-        self, blob_path: str, version_id: str | None = None
-    ) -> AsyncIterator[bytes]:
+    async def stream_blob(self, blob_path: str, version_id: str | None = None) -> AsyncIterator[bytes]:
         """Stream a blob in chunks for large file downloads."""
         container_client = self._get_container_client()
         blob_client = container_client.get_blob_client(blob_path)
@@ -112,12 +110,14 @@ class BlobService:
         )
         for blob in blobs:
             if blob.name == blob_path:
-                versions.append({
-                    "version_id": blob.version_id or "",
-                    "last_modified": blob.last_modified,
-                    "content_length": blob.size,
-                    "is_current": blob.is_current_version or False,
-                })
+                versions.append(
+                    {
+                        "version_id": blob.version_id or "",
+                        "last_modified": blob.last_modified,
+                        "content_length": blob.size,
+                        "is_current": blob.is_current_version or False,
+                    }
+                )
 
         return sorted(versions, key=lambda v: v["last_modified"], reverse=True)
 

@@ -44,15 +44,11 @@ class MetadataService:
         return investigation
 
     async def get_investigation(self, investigation_id: UUID) -> Investigation | None:
-        result = await self._session.execute(
-            select(Investigation).where(Investigation.id == investigation_id)
-        )
+        result = await self._session.execute(select(Investigation).where(Investigation.id == investigation_id))
         return result.scalar_one_or_none()
 
     async def get_investigation_by_record_id(self, record_id: str) -> Investigation | None:
-        result = await self._session.execute(
-            select(Investigation).where(Investigation.record_id == record_id)
-        )
+        result = await self._session.execute(select(Investigation).where(Investigation.record_id == record_id))
         return result.scalar_one_or_none()
 
     async def list_investigations(
@@ -82,9 +78,7 @@ class MetadataService:
 
         total = (await self._session.execute(count_query)).scalar() or 0
         result = await self._session.execute(
-            query.order_by(Investigation.created_at.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            query.order_by(Investigation.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
         )
 
         investigations = []
@@ -109,9 +103,7 @@ class MetadataService:
         if status is not None:
             values["status"] = status
 
-        await self._session.execute(
-            update(Investigation).where(Investigation.id == investigation_id).values(**values)
-        )
+        await self._session.execute(update(Investigation).where(Investigation.id == investigation_id).values(**values))
         return await self.get_investigation(investigation_id)
 
     # ========================================================================
@@ -172,16 +164,18 @@ class MetadataService:
             Document.investigation_id == investigation_id,
             Document.is_deleted == False,  # noqa: E712
         )
-        count_query = select(func.count()).select_from(Document).where(
-            Document.investigation_id == investigation_id,
-            Document.is_deleted == False,  # noqa: E712
+        count_query = (
+            select(func.count())
+            .select_from(Document)
+            .where(
+                Document.investigation_id == investigation_id,
+                Document.is_deleted == False,  # noqa: E712
+            )
         )
 
         total = (await self._session.execute(count_query)).scalar() or 0
         result = await self._session.execute(
-            base.order_by(Document.uploaded_at.desc())
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            base.order_by(Document.uploaded_at.desc()).offset((page - 1) * page_size).limit(page_size)
         )
         return list(result.scalars().all()), total
 
@@ -202,9 +196,7 @@ class MetadataService:
         if error:
             values["pdf_conversion_error"] = error
 
-        await self._session.execute(
-            update(Document).where(Document.file_id == file_id).values(**values)
-        )
+        await self._session.execute(update(Document).where(Document.file_id == file_id).values(**values))
 
     async def soft_delete_document(self, document_id: UUID, user_id: str) -> None:
         await self._session.execute(

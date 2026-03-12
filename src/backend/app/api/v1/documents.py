@@ -296,11 +296,13 @@ async def batch_upload_documents(
         try:
             file_data = await file.read()
             if len(file_data) > settings.max_upload_size_bytes:
-                results.append(BatchUploadResult(
-                    filename=file.filename or "unnamed",
-                    success=False,
-                    error=f"Exceeds {settings.max_upload_size_mb}MB limit",
-                ))
+                results.append(
+                    BatchUploadResult(
+                        filename=file.filename or "unnamed",
+                        success=False,
+                        error=f"Exceeds {settings.max_upload_size_mb}MB limit",
+                    )
+                )
                 continue
 
             file_id = str(uuid.uuid4())
@@ -329,17 +331,21 @@ async def batch_upload_documents(
                 pdf_conversion_status=pdf_status,
             )
 
-            results.append(BatchUploadResult(
-                filename=filename,
-                success=True,
-                file_id=file_id,
-            ))
+            results.append(
+                BatchUploadResult(
+                    filename=filename,
+                    success=True,
+                    file_id=file_id,
+                )
+            )
         except Exception as e:
-            results.append(BatchUploadResult(
-                filename=file.filename or "unnamed",
-                success=False,
-                error=str(e),
-            ))
+            results.append(
+                BatchUploadResult(
+                    filename=file.filename or "unnamed",
+                    success=False,
+                    error=str(e),
+                )
+            )
 
     succeeded = sum(1 for r in results if r.success)
     await audit_svc.log_event(

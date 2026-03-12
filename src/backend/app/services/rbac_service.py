@@ -24,9 +24,7 @@ class RBACService:
         email: str | None = None,
     ) -> AppUser:
         """Get existing user or create on first login with viewer role."""
-        result = await self._session.execute(
-            select(AppUser).where(AppUser.entra_oid == oid)
-        )
+        result = await self._session.execute(select(AppUser).where(AppUser.entra_oid == oid))
         user = result.scalar_one_or_none()
 
         if user:
@@ -38,9 +36,7 @@ class RBACService:
             return user
 
         # New user - assign viewer role
-        viewer_result = await self._session.execute(
-            select(Role).where(Role.name == "viewer")
-        )
+        viewer_result = await self._session.execute(select(Role).where(Role.name == "viewer"))
         viewer_role = viewer_result.scalar_one_or_none()
 
         user = AppUser(
@@ -65,18 +61,13 @@ class RBACService:
                     return True
         return False
 
-    async def list_users(
-        self, page: int = 1, page_size: int = 20
-    ) -> tuple[list[AppUser], int]:
+    async def list_users(self, page: int = 1, page_size: int = 20) -> tuple[list[AppUser], int]:
         """List all users with pagination."""
         count_query = select(func.count()).select_from(AppUser)
         total = (await self._session.execute(count_query)).scalar() or 0
 
         result = await self._session.execute(
-            select(AppUser)
-            .order_by(AppUser.display_name)
-            .offset((page - 1) * page_size)
-            .limit(page_size)
+            select(AppUser).order_by(AppUser.display_name).offset((page - 1) * page_size).limit(page_size)
         )
         return list(result.scalars().all()), total
 
@@ -87,16 +78,12 @@ class RBACService:
 
     async def assign_roles(self, user_id: str, role_names: list[str]) -> AppUser | None:
         """Replace user's roles with the specified roles."""
-        result = await self._session.execute(
-            select(AppUser).where(AppUser.id == user_id)
-        )
+        result = await self._session.execute(select(AppUser).where(AppUser.id == user_id))
         user = result.scalar_one_or_none()
         if not user:
             return None
 
-        roles_result = await self._session.execute(
-            select(Role).where(Role.name.in_(role_names))
-        )
+        roles_result = await self._session.execute(select(Role).where(Role.name.in_(role_names)))
         new_roles = list(roles_result.scalars().all())
 
         user.roles = new_roles
