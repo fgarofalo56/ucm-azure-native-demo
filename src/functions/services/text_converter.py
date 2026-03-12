@@ -40,7 +40,7 @@ class TextConverter:
         # Add text content
         pdf.set_font("Courier", size=10)
         for line in text.split("\n"):
-            pdf.multi_cell(0, 5, line)
+            pdf.multi_cell(0, 5, line if line else " ")
 
         output = pdf.output()
         logger.info("Text conversion completed: filename=%s, pdf_size=%d", filename, len(output))

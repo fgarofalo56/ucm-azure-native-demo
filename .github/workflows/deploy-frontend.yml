@@ -59,7 +59,7 @@ jobs:
       - name: Install & Build
         working-directory: src/frontend
         run: |
-          npm ci
+          npm install --force
           npm run build
         env:
           VITE_ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}

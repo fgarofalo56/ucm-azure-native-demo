@@ -63,7 +63,12 @@ select = [
     "TCH", # flake8-type-checking
     "RUF", # ruff-specific
 ]
-ignore = ["S104", "S108"]
+ignore = [
+    "S104",  # Possible binding to all interfaces
+    "S108",  # Probable insecure temp file usage
+    "B008",  # Function call in default arg (FastAPI Query/Depends pattern)
+    "S110",  # try-except-pass (used intentionally for optional features)
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
