@@ -1,0 +1,16 @@
+{
+  "allowedTools": [],
+  "disallowedTools": [],
+  "permissions": {
+    "allow": [],
+    "deny": []
+  },
+  "contextFiles": ["CLAUDE.md", ".claude/SESSION_KNOWLEDGE.md"],
+  "description": "AssuranceNet Document Management System - Azure-native UCM replacement",
+  "languages": ["python", "typescript", "bicep"],
+  "projectType": "fullstack",
+  "confirmCommands": true,
+  "showDiffs": true,
+  "defaultBranch": "main",
+  "mcpServers": {}
+}

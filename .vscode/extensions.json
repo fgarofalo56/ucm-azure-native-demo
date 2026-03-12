@@ -1,0 +1,98 @@
+{
+  "recommendations": [
+    // ============================================================================
+    // CLAUDE CODE (If available)
+    // ============================================================================
+    // Note: Add official Claude Code extension ID here when available
+
+    // ============================================================================
+    // GIT & VERSION CONTROL
+    // ============================================================================
+    "eamodio.gitlens",
+    "mhutchie.git-graph",
+    "github.vscode-pull-request-github",
+
+    // ============================================================================
+    // MARKDOWN & DOCUMENTATION
+    // ============================================================================
+    "yzhang.markdown-all-in-one",
+    "bierner.markdown-mermaid",
+    "bierner.markdown-preview-github-styles",
+    "davidanson.vscode-markdownlint",
+    "shd101wyy.markdown-preview-enhanced",
+
+    // ============================================================================
+    // LANGUAGE SUPPORT
+    // ============================================================================
+    // TypeScript/JavaScript
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+
+    // Python
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "charliermarsh.ruff",
+
+    // C#/.NET
+    "ms-dotnettools.csharp",
+    "ms-dotnettools.csdevkit",
+
+    // Go
+    "golang.go",
+
+    // Rust
+    "rust-lang.rust-analyzer",
+
+    // ============================================================================
+    // WEB DEVELOPMENT
+    // ============================================================================
+    "bradlc.vscode-tailwindcss",
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.npm-intellisense",
+
+    // ============================================================================
+    // INFRASTRUCTURE & DEVOPS
+    // ============================================================================
+    "ms-azuretools.vscode-docker",
+    "ms-kubernetes-tools.vscode-kubernetes-tools",
+    "hashicorp.terraform",
+    "ms-azuretools.vscode-bicep",
+    "redhat.vscode-yaml",
+
+    // ============================================================================
+    // API & DATA
+    // ============================================================================
+    "humao.rest-client",
+    "rangav.vscode-thunder-client",
+    "mechatroner.rainbow-csv",
+
+    // ============================================================================
+    // PRODUCTIVITY
+    // ============================================================================
+    "streetsidesoftware.code-spell-checker",
+    "gruntfuggly.todo-tree",
+    "wayou.vscode-todo-highlight",
+    "usernamehw.errorlens",
+    "christian-kohler.path-intellisense",
+    "mikestead.dotenv",
+
+    // ============================================================================
+    // VISUALIZATION
+    // ============================================================================
+    "hediet.vscode-drawio",
+    "pomdtr.excalidraw-editor",
+    "jebbs.plantuml",
+
+    // ============================================================================
+    // SECURITY
+    // ============================================================================
+    "snyk-security.snyk-vulnerability-scanner",
+
+    // ============================================================================
+    // THEMES & ICONS (Optional)
+    // ============================================================================
+    "pkief.material-icon-theme",
+    "zhuangtongfa.material-theme"
+  ],
+  "unwantedRecommendations": []
+}

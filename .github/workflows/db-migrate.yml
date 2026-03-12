@@ -1,0 +1,71 @@
+name: Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+      migration_version:
+        description: 'Alembic version (head for latest)'
+        required: true
+        default: 'head'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate:
+    name: Validate Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: src/backend
+        run: pip install -e .
+
+      - name: Check for pending migrations
+        working-directory: src/backend
+        run: |
+          cd app/db/migrations
+          alembic check || echo "Migrations pending"
+
+  migrate:
+    name: Run Migration (${{ inputs.environment }})
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        working-directory: src/backend
+        run: pip install -e .
+
+      - name: Run Alembic Migration
+        working-directory: src/backend/app/db/migrations
+        run: alembic upgrade ${{ inputs.migration_version }}
+        env:
+          AZURE_SQL_SERVER: ${{ secrets.SQL_SERVER_FQDN }}
+          AZURE_SQL_DATABASE: ${{ secrets.SQL_DATABASE_NAME }}

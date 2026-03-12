@@ -1,0 +1,449 @@
+openapi: 3.1.0
+info:
+  title: AssuranceNet Document Management API
+  description: |
+    Azure-native document management API replacing Oracle Universal Content Manager (UCM)
+    for FSIS AssuranceNet. Provides document upload, download, PDF conversion tracking,
+    PDF merging, investigation management, and audit logging.
+
+    ## FSIS Data Context
+    This API manages food safety investigation documents from the
+    [FSIS Science & Data program](https://www.fsis.usda.gov/science-data), including
+    sampling plans, laboratory data (CSV), National Residue Program reports,
+    microbiology baselines, MPI establishment directories, and inspection task records.
+
+    ## Authentication
+    All endpoints (except health checks) require a valid Microsoft Entra ID JWT token
+    obtained via MSAL.js redirect flow. Include the token as `Authorization: Bearer <token>`.
+
+    ## Demo Data
+    Use the seed-data script to populate the system with real FSIS documents:
+    `./scripts/setup/seed-data.sh`
+  version: 0.1.0
+  contact:
+    name: FSIS AssuranceNet Team
+    email: FSISDataDriven@usda.gov
+  license:
+    name: MIT
+
+servers:
+  - url: https://app-assurancenet-api-dev.azurewebsites.net
+    description: Development
+  - url: https://app-assurancenet-api-staging.azurewebsites.net
+    description: Staging
+  - url: https://app-assurancenet-api.azurewebsites.net
+    description: Production
+
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Microsoft Entra ID JWT access token
+
+  schemas:
+    Investigation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        record_id:
+          type: string
+          example: "INVESTIGATION-12345"
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [active, closed, archived]
+        created_by:
+          type: string
+        created_by_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        document_count:
+          type: integer
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        file_id:
+          type: string
+        original_filename:
+          type: string
+        content_type:
+          type: string
+        file_size_bytes:
+          type: integer
+          format: int64
+        blob_path:
+          type: string
+        pdf_path:
+          type: string
+          nullable: true
+        pdf_conversion_status:
+          type: string
+          enum: [pending, processing, completed, failed, not_required]
+        checksum_sha256:
+          type: string
+        uploaded_by_name:
+          type: string
+        uploaded_at:
+          type: string
+          format: date-time
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    PaginatedResponse:
+      type: object
+      properties:
+        items:
+          type: array
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+
+paths:
+  /api/v1/health:
+    get:
+      summary: Health check (liveness)
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/health/ready:
+    get:
+      summary: Readiness check (DB + storage)
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: All dependencies ready
+        "503":
+          description: One or more dependencies unavailable
+
+  /api/v1/investigations:
+    get:
+      summary: List investigations
+      tags: [Investigations]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, closed, archived]
+      responses:
+        "200":
+          description: Paginated investigation list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse"
+    post:
+      summary: Create investigation
+      tags: [Investigations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [record_id, title]
+              properties:
+                record_id:
+                  type: string
+                title:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Investigation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Investigation"
+
+  /api/v1/investigations/{investigation_id}:
+    get:
+      summary: Get investigation details
+      tags: [Investigations]
+      parameters:
+        - name: investigation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Investigation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Investigation"
+        "404":
+          description: Investigation not found
+
+  /api/v1/investigations/{investigation_id}/documents:
+    get:
+      summary: List documents for investigation
+      tags: [Documents]
+      parameters:
+        - name: investigation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Document list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse"
+
+  /api/v1/documents/upload:
+    post:
+      summary: Upload document
+      tags: [Documents]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, investigation_id]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                investigation_id:
+                  type: string
+                  format: uuid
+      responses:
+        "201":
+          description: Document uploaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+        "413":
+          description: File too large
+
+  /api/v1/documents/{document_id}:
+    get:
+      summary: Get document metadata
+      tags: [Documents]
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Document metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Document"
+    delete:
+      summary: Soft-delete document
+      tags: [Documents]
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "204":
+          description: Document deleted
+
+  /api/v1/documents/{document_id}/download:
+    get:
+      summary: Download original file
+      tags: [Documents]
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: version
+          in: query
+          schema:
+            type: string
+          description: Specific blob version ID
+      responses:
+        "200":
+          description: File download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+
+  /api/v1/documents/{document_id}/pdf:
+    get:
+      summary: Download PDF version
+      tags: [Documents]
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: PDF download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: PDF not available
+
+  /api/v1/documents/{document_id}/versions:
+    get:
+      summary: List document versions
+      tags: [Documents]
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Version list
+
+  /api/v1/investigations/{record_id}/merge-pdf:
+    post:
+      summary: Merge multiple document PDFs
+      tags: [PDF Operations]
+      parameters:
+        - name: record_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [file_ids]
+              properties:
+                file_ids:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 2
+                  maxItems: 50
+      responses:
+        "200":
+          description: Merged PDF download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /api/v1/audit/logs:
+    post:
+      summary: Query audit logs (Admin only)
+      tags: [Audit]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                event_type:
+                  type: string
+                user_id:
+                  type: string
+                resource_id:
+                  type: string
+                start_date:
+                  type: string
+                  format: date-time
+                end_date:
+                  type: string
+                  format: date-time
+                page:
+                  type: integer
+                  default: 1
+                page_size:
+                  type: integer
+                  default: 50
+      responses:
+        "200":
+          description: Paginated audit log entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse"
+        "403":
+          description: Admin role required

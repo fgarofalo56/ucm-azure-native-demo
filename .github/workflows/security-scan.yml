@@ -1,0 +1,124 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Run weekly on Sundays at midnight
+    - cron: '0 0 * * 0'
+
+jobs:
+  gitleaks:
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        continue-on-error: true
+
+  detect-secrets:
+    name: Detect Secrets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install detect-secrets
+        run: pip install detect-secrets
+
+      - name: Run detect-secrets
+        run: |
+          echo "Scanning for secrets..."
+          detect-secrets scan --all-files --exclude-files '\.git/.*' > .secrets-report.json 2>&1 || true
+
+          # Check if any secrets were found
+          if grep -q '"results": {}' .secrets-report.json; then
+            echo "No secrets detected"
+          else
+            echo "Potential secrets found - review .secrets-report.json"
+            cat .secrets-report.json
+          fi
+
+      - name: Upload secrets report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: secrets-report
+          path: .secrets-report.json
+          retention-days: 30
+
+  file-permissions:
+    name: Check Sensitive Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for sensitive files
+        run: |
+          echo "Checking for sensitive files that shouldn't be committed..."
+
+          SENSITIVE_PATTERNS=(
+            ".env"
+            ".env.*"
+            "*.pem"
+            "*.key"
+            "*credentials*"
+            "*secret*"
+            "*.p12"
+            "*.pfx"
+          )
+
+          FOUND_ISSUES=0
+
+          for pattern in "${SENSITIVE_PATTERNS[@]}"; do
+            FILES=$(find . -name "$pattern" -type f 2>/dev/null | grep -v ".github" | grep -v ".example" | grep -v ".template" || true)
+            if [ -n "$FILES" ]; then
+              echo "Warning: Found potentially sensitive files matching '$pattern':"
+              echo "$FILES"
+              FOUND_ISSUES=1
+            fi
+          done
+
+          if [ $FOUND_ISSUES -eq 1 ]; then
+            echo ""
+            echo "Review the above files to ensure no secrets are committed"
+          else
+            echo "No sensitive file patterns found"
+          fi
+
+      - name: Check .gitignore coverage
+        run: |
+          echo "Checking .gitignore for security patterns..."
+
+          if [ -f ".gitignore" ]; then
+            REQUIRED_IGNORES=(".env" "*.pem" "*.key" ".secrets")
+
+            for pattern in "${REQUIRED_IGNORES[@]}"; do
+              if grep -q "$pattern" .gitignore; then
+                echo "Good: '$pattern' is in .gitignore"
+              else
+                echo "Warning: '$pattern' should be in .gitignore"
+              fi
+            done
+          else
+            echo "Warning: No .gitignore file found"
+          fi

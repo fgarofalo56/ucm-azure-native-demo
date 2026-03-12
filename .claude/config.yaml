@@ -1,0 +1,36 @@
+# Claude Code - Project Configuration
+# This file links the repository to its Archon project
+
+archon_project_id: "1669d737-93fd-45de-b38b-ce8d5177dcb7"
+project_title: "AssuranceNet Document Management System"
+github_repo: "https://github.com/MyDemoRepos/ucm-azure-native-demo"
+local_path: "E:\\Repos\\GitHub\\MyDemoRepos\\ucm-azure-native-demo"
+
+# Session tracking
+created_at: "2026-03-10"
+updated_at: "2026-03-10"
+
+# Project settings
+default_assignee: "Claude Code"
+task_status_flow:
+  - todo
+  - doing
+  - review
+  - done
+
+# Tool categories tracked
+tool_categories:
+  - skills
+  - commands
+  - agents
+
+# Template profile (for selective sync)
+template_profile:
+  template_version: "2.0.0"
+  project_type: "fullstack"
+  primary_language: "python"
+  framework: "fastapi"
+  skill_groups: ["core", "frontend", "backend", "cloud_infra", "testing"]
+  command_groups: ["base", "dev_tasks", "git", "project", "prp"]
+  dev_frameworks: ["prp"]
+  created_with: "manual-onboarding"

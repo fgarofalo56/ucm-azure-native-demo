@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "excludedTypes": "Request"
+      }
+    },
+    "logLevel": {
+      "default": "Information",
+      "Host.Results": "Error",
+      "Function": "Information",
+      "Host.Aggregator": "Trace"
+    }
+  },
+  "extensions": {
+    "eventGrid": {
+      "maxEventGridEventLength": 131072
+    }
+  },
+  "functionTimeout": "00:05:00",
+  "retry": {
+    "strategy": "exponentialBackoff",
+    "maxRetryCount": 3,
+    "minimumInterval": "00:00:10",
+    "maximumInterval": "00:05:00"
+  }
+}

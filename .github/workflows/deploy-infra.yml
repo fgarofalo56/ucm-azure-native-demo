@@ -1,0 +1,116 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths: ['infra/**']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  validate:
+    name: Validate Bicep
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Bicep Build
+        run: az bicep build --file infra/main.bicep
+
+      - name: What-If (dev)
+        run: |
+          az deployment sub what-if \
+            --location eastus \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/dev.bicepparam
+
+  deploy-dev:
+    name: Deploy to Dev
+    needs: validate
+    if: github.ref == 'refs/heads/main' || github.event.inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Bicep
+        run: |
+          az deployment sub create \
+            --location eastus \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/dev.bicepparam \
+            --name "deploy-dev-$(date +%Y%m%d-%H%M%S)"
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: deploy-dev
+    if: github.event.inputs.environment == 'staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Bicep
+        run: |
+          az deployment sub create \
+            --location eastus \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/staging.bicepparam \
+            --name "deploy-staging-$(date +%Y%m%d-%H%M%S)"
+
+  deploy-prod:
+    name: Deploy to Production
+    needs: deploy-staging
+    if: github.event.inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Bicep
+        run: |
+          az deployment sub create \
+            --location eastus \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/prod.bicepparam \
+            --name "deploy-prod-$(date +%Y%m%d-%H%M%S)"

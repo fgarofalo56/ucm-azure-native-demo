@@ -1,0 +1,76 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths: ['src/frontend/**']
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: src/frontend
+        run: npm run lint
+
+      - name: Type check
+        working-directory: src/frontend
+        run: npm run typecheck
+
+      - name: Run tests
+        working-directory: src/frontend
+        run: npm run test -- --run
+
+  build-deploy:
+    name: Build & Deploy
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Install & Build
+        working-directory: src/frontend
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+          VITE_ENTRA_CLIENT_ID: ${{ secrets.ENTRA_SPA_CLIENT_ID }}
+          VITE_API_SCOPE: ${{ secrets.API_SCOPE }}
+          VITE_API_BASE_URL: ${{ secrets.API_BASE_URL }}
+
+      - name: Deploy to Static Web App
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.SWA_DEPLOYMENT_TOKEN }}
+          action: upload
+          app_location: src/frontend/dist
+          skip_app_build: true

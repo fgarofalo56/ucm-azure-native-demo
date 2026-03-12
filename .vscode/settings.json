@@ -1,0 +1,260 @@
+{
+  // ==========================================================================
+  // VS Code Settings for Claude Code Projects
+  // ==========================================================================
+
+  // ========================================================================
+  // GIT SETTINGS
+  // ========================================================================
+  "git.autofetch": true,
+  "git.enableSmartCommit": true,
+  "git.confirmSync": false,
+  "git.pruneOnFetch": true,
+  "git.fetchOnPull": true,
+
+  // ========================================================================
+  // TERMINAL SETTINGS
+  // ========================================================================
+  "terminal.integrated.defaultProfile.linux": "bash",
+  "terminal.integrated.defaultProfile.windows": "PowerShell",
+
+  // ========================================================================
+  // REMOTE & CODESPACES SETTINGS
+  // ========================================================================
+  "remote.autoForwardPorts": true,
+  "remote.autoForwardPortsSource": "process",
+
+  // ========================================================================
+  // EDITOR SETTINGS
+  // ========================================================================
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": false,
+  "editor.minimap.enabled": false,
+  "editor.wordWrap": "off",
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true,
+  "editor.detectIndentation": true,
+  "editor.renderWhitespace": "selection",
+  "editor.bracketPairColorization.enabled": true,
+  "editor.guides.bracketPairs": "active",
+  "editor.inlineSuggest.enabled": true,
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+
+  // ========================================================================
+  // FILE SETTINGS
+  // ========================================================================
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "files.trimFinalNewlines": true,
+  "files.autoSave": "onFocusChange",
+
+  // ========================================================================
+  // CLAUDE CODE CONTEXT EXCLUSIONS
+  // ========================================================================
+  // Exclude files from Claude Code context to reduce token usage and improve
+  // performance. Uses workspace-relative patterns.
+
+  "claude.contextFiles.exclude": {
+    // Dependency directories (largest impact)
+    "**/node_modules/**": true,
+    "**/.pnpm-store/**": true,
+    "**/venv/**": true,
+    "**/.venv/**": true,
+    "**/vendor/**": true,
+    "**/__pycache__/**": true,
+    "**/packages/**": true,
+    "**/.gradle/**": true,
+    "**/target/**": true,
+
+    // Build outputs
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/out/**": true,
+    "**/.next/**": true,
+    "**/.nuxt/**": true,
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/artifacts/**": true,
+    "**/.cache/**": true,
+    "**/.parcel-cache/**": true,
+    "**/.turbo/**": true,
+
+    // Lock files
+    "**/package-lock.json": true,
+    "**/yarn.lock": true,
+    "**/pnpm-lock.yaml": true,
+    "**/composer.lock": true,
+    "**/poetry.lock": true,
+    "**/Cargo.lock": true,
+    "**/go.sum": true,
+    "**/packages.lock.json": true,
+
+    // Generated code
+    "**/*.generated.*": true,
+    "**/__generated__/**": true,
+    "**/generated/**": true,
+    "**/*.g.cs": true,
+    "**/*.pb.go": true,
+
+    // Coverage and test reports
+    "**/coverage/**": true,
+    "**/.nyc_output/**": true,
+    "**/htmlcov/**": true,
+    "**/.pytest_cache/**": true,
+    "**/test-results/**": true,
+    "**/TestResults/**": true,
+
+    // Caches
+    "**/.eslintcache": true,
+    "**/.mypy_cache/**": true,
+    "**/.ruff_cache/**": true,
+    "**/.tox/**": true,
+    "**/.hypothesis/**": true,
+    "**/*.tsbuildinfo": true,
+
+    // Logs
+    "**/*.log": true,
+    "**/logs/**": true,
+
+    // Binary and media files
+    "**/*.png": true,
+    "**/*.jpg": true,
+    "**/*.jpeg": true,
+    "**/*.gif": true,
+    "**/*.ico": true,
+    "**/*.webp": true,
+    "**/*.svg": true,
+    "**/*.woff": true,
+    "**/*.woff2": true,
+    "**/*.ttf": true,
+    "**/*.mp3": true,
+    "**/*.mp4": true,
+    "**/*.pdf": true,
+    "**/*.zip": true,
+    "**/*.tar.gz": true,
+    "**/*.db": true,
+    "**/*.sqlite": true,
+
+    // Minified/bundled code
+    "**/*.min.js": true,
+    "**/*.min.css": true,
+    "**/*.bundle.js": true,
+    "**/*.chunk.js": true,
+    "**/*.map": true,
+
+    // Infrastructure state
+    "**/*.tfstate": true,
+    "**/.terraform/**": true,
+
+    // Secrets and credentials
+    "**/.env": true,
+    "**/.env.*": true,
+    "**/secrets/**": true,
+    "**/credentials/**": true,
+    "**/*.pem": true,
+    "**/*.key": true,
+
+    // OS files
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+
+    // IDE directories
+    "**/.idea/**": true,
+    "**/.vs/**": true,
+    "**/.history/**": true,
+
+    // Claude session files
+    "**/.claude/**": true,
+    "**/temp/**": true
+  },
+
+  // ========================================================================
+  // VS CODE SEARCH EXCLUSIONS
+  // ========================================================================
+  "search.useIgnoreFiles": true,
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/build": true,
+    "**/coverage": true,
+    "**/.git": true,
+    "**/package-lock.json": true,
+    "**/yarn.lock": true,
+    "**/pnpm-lock.yaml": true,
+    "**/*.min.js": true,
+    "**/*.min.css": true,
+    "**/temp/**": true,
+    // Git Worktrees: Exclude sibling worktree directories
+    "../*-pr-*/**": true,
+    "../*-feature-*/**": true,
+    "../*-experiment-*/**": true,
+    "../*-hotfix/**": true
+  },
+
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true
+  },
+
+  // Watcher exclusions for performance
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/build/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/coverage/**": true,
+    "**/.next/**": true,
+    "**/venv/**": true,
+    "**/__pycache__/**": true,
+    "**/temp/**": true
+  },
+
+  // ========================================================================
+  // LANGUAGE-SPECIFIC SETTINGS
+  // ========================================================================
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit",
+      "source.organizeImports": "explicit"
+    }
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "editor.quickSuggestions": {
+      "comments": "off",
+      "strings": "off",
+      "other": "off"
+    }
+  },
+  "[yaml]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 2,
+    "editor.autoIndent": "keep"
+  },
+  "snyk.advanced.autoSelectOrganization": true,
+  "sarif-viewer.connectToGithubCodeScanning": "off"
+}

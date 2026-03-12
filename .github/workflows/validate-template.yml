@@ -1,0 +1,145 @@
+name: Validate Template
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - '**.md'
+      - '.claude/**'
+      - 'scripts/**'
+  pull_request:
+    branches: [main, master]
+    paths:
+      - '**.md'
+      - '.claude/**'
+      - 'scripts/**'
+
+jobs:
+  validate-powershell:
+    name: Run PowerShell Validation
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run validation script
+        shell: pwsh
+        run: |
+          if (Test-Path "scripts/validate-claude-code.ps1") {
+            Write-Host "Running validate-claude-code.ps1..."
+            & ./scripts/validate-claude-code.ps1
+          } else {
+            Write-Host "Validation script not found, skipping"
+          }
+        continue-on-error: true
+
+  validate-markdown:
+    name: Validate Markdown
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install markdownlint
+        run: npm install -g markdownlint-cli
+
+      - name: Lint markdown files
+        run: |
+          echo "Linting markdown files..."
+          markdownlint '**/*.md' --ignore node_modules --ignore .git || true
+
+      - name: Check for broken links
+        run: |
+          echo "Checking for potential broken links..."
+
+          # Find all markdown links
+          grep -roh '\[.*\](.*)' --include="*.md" . | head -50 || true
+
+          # Check for common broken link patterns
+          echo ""
+          echo "Checking for common issues..."
+
+          # Links to non-existent files
+          grep -rn '\[.*\](\.\./' --include="*.md" . | head -20 || true
+
+  validate-structure:
+    name: Validate Template Structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate CLAUDE.md structure
+        run: |
+          if [ ! -f "CLAUDE.md" ]; then
+            echo "CLAUDE.md not found"
+            exit 0
+          fi
+
+          echo "Validating CLAUDE.md structure..."
+
+          # Check for common required sections
+          SECTIONS=(
+            "# "
+            "## "
+          )
+
+          for section in "${SECTIONS[@]}"; do
+            COUNT=$(grep -c "^${section}" CLAUDE.md || echo "0")
+            echo "Found $COUNT '${section}' headers"
+          done
+
+          # Check file isn't too large for context window
+          LINES=$(wc -l < CLAUDE.md)
+          CHARS=$(wc -c < CLAUDE.md)
+
+          echo ""
+          echo "CLAUDE.md statistics:"
+          echo "  Lines: $LINES"
+          echo "  Characters: $CHARS"
+
+          if [ "$CHARS" -gt 100000 ]; then
+            echo "Warning: CLAUDE.md is very large and may impact context window"
+          fi
+
+      - name: Check .claude directory
+        run: |
+          if [ -d ".claude" ]; then
+            echo "Found .claude directory"
+            echo "Contents:"
+            ls -la .claude/
+
+            # Check for common files
+            FILES=("config.yaml" "settings.json" "commands.json")
+            for file in "${FILES[@]}"; do
+              if [ -f ".claude/$file" ]; then
+                echo "Found: .claude/$file"
+              fi
+            done
+          else
+            echo ".claude directory not found"
+          fi
+
+      - name: Validate config files
+        run: |
+          # Validate YAML configs
+          if [ -f ".claude/config.yaml" ]; then
+            echo "Validating .claude/config.yaml..."
+            python3 -c "import yaml; yaml.safe_load(open('.claude/config.yaml'))" && echo "Valid YAML" || echo "Invalid YAML"
+          fi
+
+          # Validate JSON configs
+          for file in .claude/*.json; do
+            if [ -f "$file" ]; then
+              echo "Validating $file..."
+              python3 -m json.tool "$file" > /dev/null && echo "Valid JSON" || echo "Invalid JSON"
+            fi
+          done

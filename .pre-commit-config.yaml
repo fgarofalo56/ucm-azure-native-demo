@@ -1,0 +1,69 @@
+# Pre-commit hooks for Claude Code Skills repository
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: \.md$  # Allow trailing whitespace in markdown
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]  # Allow custom tags in YAML
+        exclude: ^skills/.*/SKILL\.md$  # Skill files have frontmatter
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Python formatting with Ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.9
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        types_or: [python]
+      - id: ruff-format
+        types_or: [python]
+
+  # YAML linting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.33.0
+    hooks:
+      - id: yamllint
+        args: [-c, .yamllint.yml]
+        exclude: ^skills/.*/SKILL\.md$  # Skill files have markdown after frontmatter
+
+  # Skill validation and indexing (local hooks)
+  - repo: local
+    hooks:
+      - id: validate-skills
+        name: Validate Claude Code Skills
+        entry: python scripts/validate_skills.py
+        language: python
+        additional_dependencies: [PyYAML]
+        pass_filenames: false
+        always_run: true
+        stages: [commit]
+
+      - id: generate-index
+        name: Generate Skills INDEX.json
+        entry: python scripts/generate_index.py --pretty
+        language: python
+        additional_dependencies: [PyYAML]
+        pass_filenames: false
+        always_run: true
+        stages: [commit]
+
+# CI configuration
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [validate-skills, generate-index]  # Skip local hooks in CI (handled by GitHub Actions)
+  submodules: false

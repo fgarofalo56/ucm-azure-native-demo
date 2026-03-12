@@ -1,0 +1,134 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply bg-secondary-50 text-secondary-900 antialiased font-sans;
+  }
+
+  .dark body,
+  body.dark {
+    @apply bg-secondary-950 text-secondary-100;
+  }
+
+  :root {
+    --sidebar-width: 256px;
+    --sidebar-collapsed-width: 72px;
+    --header-height: 64px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl shadow-card border border-secondary-200/60 p-6
+           dark:bg-secondary-900 dark:border-secondary-700/50;
+  }
+
+  .card-hover {
+    @apply card hover:shadow-card-hover hover:border-secondary-300
+           dark:hover:border-secondary-600 transition-all duration-200;
+  }
+
+  .page-header {
+    @apply text-2xl font-bold text-secondary-900 dark:text-secondary-50 mb-6;
+  }
+
+  .page-subtitle {
+    @apply text-sm text-secondary-500 dark:text-secondary-400;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-1.5;
+  }
+
+  .form-input {
+    @apply w-full rounded-lg border border-secondary-300 bg-white px-3.5 py-2.5 text-sm
+           text-secondary-900 shadow-sm
+           focus:outline-none focus:ring-2 focus:ring-primary-500/30 focus:border-primary-500
+           placeholder:text-secondary-400
+           dark:bg-secondary-800 dark:border-secondary-600 dark:text-secondary-100
+           dark:placeholder:text-secondary-500 dark:focus:ring-primary-400/30 dark:focus:border-primary-400
+           transition-colors duration-150;
+  }
+
+  .form-textarea {
+    @apply form-input resize-y min-h-[80px];
+  }
+
+  .form-select {
+    @apply form-input appearance-none bg-no-repeat;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+  }
+
+  .stat-card {
+    @apply card flex items-start gap-4 p-5;
+  }
+
+  .stat-icon {
+    @apply flex h-12 w-12 shrink-0 items-center justify-center rounded-xl;
+  }
+
+  .table-wrapper {
+    @apply overflow-x-auto rounded-xl border border-secondary-200/60 bg-white
+           dark:bg-secondary-900 dark:border-secondary-700/50;
+  }
+
+  .table-header {
+    @apply bg-secondary-50/80 dark:bg-secondary-800/60;
+  }
+
+  .table-header-cell {
+    @apply px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wider
+           text-secondary-500 dark:text-secondary-400;
+  }
+
+  .table-body {
+    @apply divide-y divide-secondary-100 dark:divide-secondary-800;
+  }
+
+  .table-row {
+    @apply hover:bg-secondary-50/50 dark:hover:bg-secondary-800/30 transition-colors;
+  }
+
+  .table-cell {
+    @apply px-4 py-3.5 text-sm text-secondary-700 dark:text-secondary-300;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-secondary-300 dark:bg-secondary-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-secondary-400 dark:bg-secondary-500;
+}
+
+/* Smooth transitions for dark mode */
+* {
+  @apply transition-colors duration-75;
+}
+
+/* Disable transitions on page load */
+.no-transitions * {
+  transition: none !important;
+}

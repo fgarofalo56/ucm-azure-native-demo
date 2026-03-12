@@ -1,0 +1,133 @@
+# ===========================
+# Auto-detect text files and normalize line endings
+# ===========================
+* text=auto
+
+# ===========================
+# Shell Scripts (Unix line endings)
+# ===========================
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+
+# ===========================
+# PowerShell Scripts (Windows line endings)
+# ===========================
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+
+# ===========================
+# Batch Files (Windows line endings)
+# ===========================
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# ===========================
+# Source Code
+# ===========================
+*.py text diff=python
+*.js text
+*.ts text
+*.jsx text
+*.tsx text
+*.json text
+*.yml text
+*.yaml text
+*.xml text
+*.html text diff=html
+*.css text diff=css
+*.scss text diff=css
+*.md text diff=markdown
+*.markdown text diff=markdown
+*.txt text
+*.sql text
+
+# ===========================
+# .NET / C#
+# ===========================
+*.cs text diff=csharp
+*.csproj text
+*.sln text
+*.config text
+
+# ===========================
+# Configuration
+# ===========================
+*.env text
+*.ini text
+*.cfg text
+*.conf text
+*.toml text
+.gitignore text
+.gitattributes text
+.editorconfig text
+Makefile text
+Dockerfile text
+
+# ===========================
+# Binary Files (no conversion)
+# ===========================
+# Images
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.webp binary
+*.bmp binary
+*.tiff binary
+
+# Fonts
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+
+# Archives
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.rar binary
+
+# Documents
+*.pdf binary
+*.doc binary
+*.docx binary
+*.xls binary
+*.xlsx binary
+*.ppt binary
+*.pptx binary
+
+# Audio/Video
+*.mp3 binary
+*.mp4 binary
+*.wav binary
+*.avi binary
+*.mov binary
+*.webm binary
+
+# Executables
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+
+# Other binaries
+*.pyc binary
+*.pyo binary
+*.class binary
+*.jar binary
+*.war binary
+*.ear binary
+
+# ===========================
+# Git LFS (if using)
+# ===========================
+# Uncomment if using Git LFS for large files
+# *.psd filter=lfs diff=lfs merge=lfs -text
+# *.ai filter=lfs diff=lfs merge=lfs -text
+# *.sketch filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AssuranceNet - FSIS Document Management System for investigation document tracking, PDF conversion, and audit compliance."
+    />
+    <meta name="theme-color" content="#312e81" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>AssuranceNet | FSIS Document Management</title>
+  </head>
+  <body class="no-transitions">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Remove no-transitions class after page load to enable smooth transitions
+      window.addEventListener("load", () => {
+        document.body.classList.remove("no-transitions");
+      });
+    </script>
+  </body>
+</html>

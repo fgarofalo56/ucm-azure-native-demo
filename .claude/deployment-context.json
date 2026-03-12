@@ -1,0 +1,111 @@
+{
+  "deployment_date": "2026-03-11",
+  "region": "eastus2",
+  "environment": "dev",
+  "subscription_id": "363ef5d1-0e77-4594-a530-f51af23dbf8c",
+  "tenant_id": "d1fc0498-f208-4b49-8376-beb9293acdf6",
+  "resource_groups": {
+    "network": "rg-assurancenet-network-dev",
+    "app": "rg-assurancenet-app-dev",
+    "data": "rg-assurancenet-data-dev",
+    "security": "rg-assurancenet-security-dev",
+    "monitoring": "rg-assurancenet-monitoring-dev"
+  },
+  "infrastructure": {
+    "deployment_method": "bicep",
+    "main_template": "infra/main.bicep",
+    "parameters_file": "infra/parameters/dev.bicepparam",
+    "deployment_command": "az deployment sub create --location eastus2 --template-file infra/main.bicep --parameters infra/parameters/dev.bicepparam --name assurancenet-dev-deploy"
+  },
+  "services": {
+    "backend_api": {
+      "type": "Azure Container App",
+      "name": "ca-api-assurancenet-dev",
+      "resource_group": "rg-assurancenet-app-dev",
+      "environment": "cae-api-assurancenet-dev",
+      "fqdn": "ca-api-assurancenet-dev.reddune-5bb251d3.eastus2.azurecontainerapps.io",
+      "url": "https://ca-api-assurancenet-dev.reddune-5bb251d3.eastus2.azurecontainerapps.io",
+      "docs_url": "https://ca-api-assurancenet-dev.reddune-5bb251d3.eastus2.azurecontainerapps.io/api/docs",
+      "image": "acrassurancenetdev.azurecr.io/assurancenet-api:v2",
+      "managed_identity": "mi-app-assurancenet-dev",
+      "managed_identity_client_id": "1ff94f8a-f7b4-4748-b96d-25616d641160",
+      "notes": "Deployed on separate external Container Apps Environment (cae-api-assurancenet-dev) since the Bicep-provisioned environment (cae-assurancenet-dev) is VNet-internal"
+    },
+    "frontend": {
+      "type": "Azure Static Web App",
+      "name": "swa-assurancenet-dev",
+      "resource_group": "rg-assurancenet-app-dev",
+      "hostname": "yellow-field-05ae8b90f.2.azurestaticapps.net",
+      "url": "https://yellow-field-05ae8b90f.2.azurestaticapps.net",
+      "deployment_method": "SWA CLI (npx @azure/static-web-apps-cli)",
+      "build_output": "src/frontend/dist"
+    },
+    "gotenberg": {
+      "type": "Azure Container App (internal)",
+      "name": "ca-gotenberg-dev",
+      "resource_group": "rg-assurancenet-app-dev",
+      "environment": "cae-assurancenet-dev",
+      "fqdn": "ca-gotenberg-dev.internal.calmcliff-3dab60e2.eastus2.azurecontainerapps.io",
+      "notes": "Internal-only, accessible within VNet only"
+    },
+    "database": {
+      "type": "Azure SQL Database",
+      "server": "sql-assurancenet-dev.database.windows.net",
+      "database": "sqldb-assurancenet-dev",
+      "auth": "Entra ID only (no SQL auth)",
+      "admin": "fgarofalo@limitlessdata.ai",
+      "managed_identity_user": "mi-app-assurancenet-dev"
+    },
+    "storage": {
+      "type": "Azure Blob Storage",
+      "account": "stassurancenetdev",
+      "container": "assurancenet-documents",
+      "versioning": true
+    },
+    "key_vault": {
+      "type": "Azure Key Vault",
+      "name": "kv-assurancenet-2-dev",
+      "uri": "https://kv-assurancenet-2-dev.vault.azure.net/"
+    },
+    "container_registry": {
+      "type": "Azure Container Registry",
+      "name": "acrassurancenetdev",
+      "login_server": "acrassurancenetdev.azurecr.io",
+      "admin_enabled": true
+    },
+    "monitoring": {
+      "log_analytics": "law-assurancenet-dev",
+      "app_insights_connection_string": "InstrumentationKey=8aab9487-924e-49d2-b225-85317a0c8858;IngestionEndpoint=https://eastus2-3.in.applicationinsights.azure.com/;LiveEndpoint=https://eastus2.livediagnostics.monitor.azure.com/"
+    }
+  },
+  "entra_id": {
+    "api_app_registration": {
+      "name": "AssuranceNet API (Dev)",
+      "app_id": "4eb00bab-f560-4af0-8116-917abb571891",
+      "identifier_uri": "api://assurancenet-api",
+      "scope": "access_as_user"
+    },
+    "frontend_app_registration": {
+      "name": "AssuranceNet Frontend (Dev)",
+      "app_id": "68cc0c43-121a-4272-a9f5-45c819a6f296",
+      "redirect_uris": [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://localhost:5173",
+        "https://yellow-field-05ae8b90f.2.azurestaticapps.net"
+      ]
+    }
+  },
+  "redeploy_commands": {
+    "infrastructure": "az deployment sub create --location eastus2 --template-file infra/main.bicep --parameters infra/parameters/dev.bicepparam --name assurancenet-dev-$(date +%Y%m%d)",
+    "backend_build": "az acr build --registry acrassurancenetdev --image assurancenet-api:latest --file src/backend/Dockerfile --no-logs src/backend/",
+    "backend_deploy": "az containerapp update --name ca-api-assurancenet-dev --resource-group rg-assurancenet-app-dev --image acrassurancenetdev.azurecr.io/assurancenet-api:latest",
+    "frontend_build": "cd src/frontend && npx tsc -b && npx vite build",
+    "frontend_deploy": "cd src/frontend && npx @azure/static-web-apps-cli deploy dist --deployment-token $(az staticwebapp secrets list --name swa-assurancenet-dev --resource-group rg-assurancenet-app-dev --query properties.apiKey -o tsv) --env production"
+  },
+  "known_issues": {
+    "compute_quota": "Subscription has 0 cores for Basic, Standard, ElasticPremium, and Dynamic VM families in eastus2. App Service and Functions cannot be deployed until quota is increased.",
+    "internal_vnet": "The Bicep-provisioned Container Apps Environment (cae-assurancenet-dev) is VNet-internal. The API is deployed on a separate external environment (cae-api-assurancenet-dev) for direct access.",
+    "functions_disabled": "Azure Functions deployment is disabled (deployFunctions=false) due to zero compute quota."
+  }
+}
