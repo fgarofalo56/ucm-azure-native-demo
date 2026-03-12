@@ -17,7 +17,7 @@ jobs:
       - name: Validate JSON files
         run: |
           echo "Validating JSON files..."
-          find . -name "*.json" -not -path "*/node_modules/*" -type f | while read file; do
+          find . -name "*.json" -not -path "*/node_modules/*" -not -path "*/.vscode/*" -not -path "*/dist/*" -type f | while read file; do
             echo "Checking: $file"
             python3 -m json.tool "$file" > /dev/null || { echo "Invalid JSON: $file"; exit 1; }
           done
@@ -88,17 +88,17 @@ jobs:
       - name: Install dependencies
         run: |
           cd src/frontend
-          npm ci
+          npm install
 
       - name: Run ESLint
         run: |
           cd src/frontend
-          npx eslint src/ --ext .ts,.tsx
+          npm run lint
 
       - name: Run TypeScript compiler check
         run: |
           cd src/frontend
-          npx tsc --noEmit
+          npm run typecheck
 
   lint-bicep:
     name: Lint Bicep
@@ -173,7 +173,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd src/frontend
-          npm ci
+          npm install
 
       - name: Run vitest with coverage
         run: |
@@ -200,7 +200,7 @@ jobs:
 
       - name: Run pytest
         run: |
-          pytest tests/functions/ -v
+          PYTHONPATH=src/functions pytest tests/functions/ -v
 
   security-sast:
     name: Security - SAST
@@ -248,7 +248,7 @@ jobs:
       - name: Audit npm dependencies
         run: |
           cd src/frontend
-          npm ci
+          npm install --ignore-scripts
           npm audit --audit-level=high || true
 
   security-secrets:

@@ -78,6 +78,6 @@ async def delete_explorer_files(
             await blob_svc.delete_blob(path)
             deleted += 1
         except Exception as e:
-            errors.append(f"{path}: {str(e)}")
+            errors.append(f"{path}: {e}")
 
     return {"deleted": deleted, "errors": errors}
