@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     # Entra ID Authentication
     entra_tenant_id: str = ""
     entra_client_id: str = ""
-    entra_audience: str = "api://assurancenet-api"
+    entra_audience: str = "api://4eb00bab-f560-4af0-8116-917abb571891"
 
     # Application Insights
     applicationinsights_connection_string: str = ""
