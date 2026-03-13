@@ -34,10 +34,11 @@ export function Header({
   const { roles } = usePermissions();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // Close dropdowns when clicking outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (
@@ -46,6 +47,7 @@ export function Header({
       ) {
         setDropdownOpen(false);
       }
+      setNotificationsOpen(false);
     }
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
@@ -178,22 +180,41 @@ export function Header({
           </button>
 
           {/* Notifications */}
-          <button
-            className={clsx(
-              "relative rounded-lg p-2",
-              "text-secondary-500 hover:bg-secondary-100 hover:text-secondary-700",
-              "dark:text-secondary-400 dark:hover:bg-secondary-800 dark:hover:text-secondary-200",
-            )}
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" />
-            <span
+          <div className="relative">
+            <button
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
               className={clsx(
-                "absolute top-1.5 right-1.5 h-2 w-2 rounded-full",
-                "bg-danger-500 ring-2 ring-white dark:ring-secondary-900",
+                "relative rounded-lg p-2",
+                "text-secondary-500 hover:bg-secondary-100 hover:text-secondary-700",
+                "dark:text-secondary-400 dark:hover:bg-secondary-800 dark:hover:text-secondary-200",
               )}
-            />
-          </button>
+              aria-label="Notifications"
+            >
+              <Bell className="h-5 w-5" />
+            </button>
+            {notificationsOpen && (
+              <div
+                className={clsx(
+                  "absolute right-0 top-full mt-1.5 w-72",
+                  "rounded-xl border bg-white shadow-lg",
+                  "dark:bg-secondary-900 dark:border-secondary-700",
+                  "border-secondary-200",
+                )}
+              >
+                <div className="px-4 py-3 border-b border-secondary-100 dark:border-secondary-800">
+                  <p className="text-sm font-semibold text-secondary-900 dark:text-secondary-50">
+                    Notifications
+                  </p>
+                </div>
+                <div className="flex flex-col items-center justify-center py-8 px-4">
+                  <Bell className="h-8 w-8 text-secondary-300 dark:text-secondary-600" />
+                  <p className="mt-2 text-sm text-secondary-500 dark:text-secondary-400">
+                    No notifications
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Divider */}
           <div className="mx-2 h-6 w-px bg-secondary-200 dark:bg-secondary-700" />

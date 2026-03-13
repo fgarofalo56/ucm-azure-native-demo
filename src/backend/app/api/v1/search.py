@@ -14,7 +14,7 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 
-@router.get("/", response_model=SearchResponse)
+@router.get("", response_model=SearchResponse)
 async def search_all(
     q: str = Query(min_length=2, max_length=200),
     type: str | None = Query(None, pattern="^(investigation|document)$"),
