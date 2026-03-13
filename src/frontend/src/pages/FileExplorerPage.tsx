@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Folder,
   FileText,
@@ -7,11 +7,14 @@ import {
   Loader2,
   Download,
   Trash2,
+  FolderPlus,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useExplorer } from "../hooks/useExplorer";
-import { downloadExplorerFile } from "../api/explorer";
+import { downloadExplorerFile, addFilesToInvestigation } from "../api/explorer";
 import { formatDistanceToNow } from "date-fns";
+import Button from "../components/ui/Button";
+import InvestigationPicker from "../components/ui/InvestigationPicker";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -26,7 +29,20 @@ export function FileExplorerPage() {
   const { data, isLoading } = useExplorer(prefix);
 
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [showPicker, setShowPicker] = useState(false);
+  const [addingToInvestigation, setAddingToInvestigation] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   const items = data?.items ?? [];
+  const fileItems = items.filter((i) => i.type === "file");
 
   const handleDownload = async (path: string, name: string) => {
     setDownloading(path);
@@ -45,10 +61,60 @@ export function FileExplorerPage() {
     }
   };
 
+  const toggleSelect = (path: string) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPaths.size === fileItems.length) {
+      setSelectedPaths(new Set());
+    } else {
+      setSelectedPaths(new Set(fileItems.map((f) => f.path)));
+    }
+  };
+
+  const handleAddToInvestigation = async (investigationId: string) => {
+    setAddingToInvestigation(true);
+    try {
+      const result = await addFilesToInvestigation(
+        investigationId,
+        Array.from(selectedPaths),
+      );
+      setShowPicker(false);
+      setSelectedPaths(new Set());
+      if (result.failed > 0) {
+        setToast({
+          type: "error",
+          message: `Added ${result.succeeded} file(s), ${result.failed} failed`,
+        });
+      } else {
+        setToast({
+          type: "success",
+          message: `Added ${result.succeeded} file(s) to investigation`,
+        });
+      }
+      toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+    } catch {
+      setToast({ type: "error", message: "Failed to add files to investigation" });
+      toastTimerRef.current = setTimeout(() => setToast(null), 4000);
+    } finally {
+      setAddingToInvestigation(false);
+    }
+  };
+
+  // Reset selection when navigating
+  const navigateTo = (path: string) => {
+    setPrefix(path);
+    setSelectedPaths(new Set());
+  };
+
   // Build breadcrumb from prefix
-  const parts = prefix
-    .split("/")
-    .filter(Boolean);
+  const parts = prefix.split("/").filter(Boolean);
   const breadcrumbs = [
     { label: "Root", path: "" },
     ...parts.map((part, idx) => ({
@@ -59,12 +125,37 @@ export function FileExplorerPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="page-header mb-1">File Explorer</h2>
-        <p className="page-subtitle">
-          Browse investigation folders and document files
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="page-header mb-1">File Explorer</h2>
+          <p className="page-subtitle">
+            Browse investigation folders and document files
+          </p>
+        </div>
+        {selectedPaths.size > 0 && (
+          <Button
+            icon={<FolderPlus className="h-4 w-4" />}
+            onClick={() => setShowPicker(true)}
+          >
+            Add {selectedPaths.size} file{selectedPaths.size > 1 ? "s" : ""} to
+            Investigation
+          </Button>
+        )}
       </div>
+
+      {/* Toast notification */}
+      {toast && (
+        <div
+          className={clsx(
+            "flex items-center gap-2 rounded-lg px-4 py-3 text-sm",
+            toast.type === "success"
+              ? "bg-success-50 text-success-700 border border-success-200 dark:bg-success-500/10 dark:text-success-400 dark:border-success-500/20"
+              : "bg-danger-50 text-danger-700 border border-danger-200 dark:bg-danger-500/10 dark:text-danger-400 dark:border-danger-500/20",
+          )}
+        >
+          {toast.message}
+        </div>
+      )}
 
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1 text-sm">
@@ -74,7 +165,7 @@ export function FileExplorerPage() {
               <ChevronRight className="h-3.5 w-3.5 text-secondary-400" />
             )}
             <button
-              onClick={() => setPrefix(crumb.path)}
+              onClick={() => navigateTo(crumb.path)}
               className={clsx(
                 "flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors",
                 idx === breadcrumbs.length - 1
@@ -106,6 +197,19 @@ export function FileExplorerPage() {
           <table className="min-w-full">
             <thead>
               <tr className="border-b border-secondary-200 dark:border-secondary-700">
+                <th className="px-4 py-3 text-left w-10">
+                  {fileItems.length > 0 && (
+                    <input
+                      type="checkbox"
+                      checked={
+                        selectedPaths.size === fileItems.length &&
+                        fileItems.length > 0
+                      }
+                      onChange={toggleSelectAll}
+                      className="rounded border-secondary-300 text-primary-600 focus:ring-primary-500 dark:border-secondary-600 dark:bg-secondary-800"
+                    />
+                  )}
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-secondary-400">
                   Name
                 </th>
@@ -128,13 +232,25 @@ export function FileExplorerPage() {
                     "border-b border-secondary-100 dark:border-secondary-800 last:border-0",
                     item.type === "folder" && "cursor-pointer",
                     "hover:bg-secondary-50 dark:hover:bg-secondary-800/50 transition-colors",
+                    selectedPaths.has(item.path) &&
+                      "bg-primary-50/50 dark:bg-primary-500/5",
                   )}
                   onClick={
                     item.type === "folder"
-                      ? () => setPrefix(item.path)
+                      ? () => navigateTo(item.path)
                       : undefined
                   }
                 >
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    {item.type === "file" && (
+                      <input
+                        type="checkbox"
+                        checked={selectedPaths.has(item.path)}
+                        onChange={() => toggleSelect(item.path)}
+                        className="rounded border-secondary-300 text-primary-600 focus:ring-primary-500 dark:border-secondary-600 dark:bg-secondary-800"
+                      />
+                    )}
+                  </td>
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
                       {item.type === "folder" ? (
@@ -203,6 +319,14 @@ export function FileExplorerPage() {
           </table>
         </div>
       )}
+
+      {/* Investigation Picker Modal */}
+      <InvestigationPicker
+        isOpen={showPicker}
+        onClose={() => setShowPicker(false)}
+        onSelect={handleAddToInvestigation}
+        loading={addingToInvestigation}
+      />
     </div>
   );
 }

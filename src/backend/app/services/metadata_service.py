@@ -54,9 +54,10 @@ class MetadataService:
     async def list_investigations(
         self,
         status: InvestigationStatus | None = None,
+        search: str | None = None,
         page: int = 1,
         page_size: int = 20,
-    ) -> tuple[list[Investigation], int]:
+    ) -> tuple[list[Investigation], int, dict[str, int]]:
         # Use a COUNT subquery instead of loading all documents via selectin
         doc_count_subq = (
             select(func.count())
@@ -72,11 +73,39 @@ class MetadataService:
         query = select(Investigation, doc_count_subq)
         count_query = select(func.count()).select_from(Investigation)
 
+        if search:
+            from sqlalchemy import or_
+            pattern = f"%{search}%"
+            search_filter = or_(
+                Investigation.title.ilike(pattern),
+                Investigation.record_id.ilike(pattern),
+            )
+            query = query.where(search_filter)
+            count_query = count_query.where(search_filter)
+
         if status:
             query = query.where(Investigation.status == status)
             count_query = count_query.where(Investigation.status == status)
 
         total = (await self._session.execute(count_query)).scalar() or 0
+
+        # Get global status counts (ignoring current status filter, but respecting search)
+        status_counts_query = (
+            select(Investigation.status, func.count())
+            .group_by(Investigation.status)
+        )
+        if search:
+            from sqlalchemy import or_
+            pattern = f"%{search}%"
+            status_counts_query = status_counts_query.where(or_(
+                Investigation.title.ilike(pattern),
+                Investigation.record_id.ilike(pattern),
+            ))
+        status_counts_result = await self._session.execute(status_counts_query)
+        status_counts: dict[str, int] = {}
+        for row in status_counts_result.all():
+            status_counts[row[0].value if hasattr(row[0], 'value') else str(row[0])] = row[1]
+
         result = await self._session.execute(
             query.order_by(Investigation.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
         )
@@ -86,7 +115,7 @@ class MetadataService:
             inv = row[0]
             inv.document_count = row[1]  # type: ignore[attr-defined]
             investigations.append(inv)
-        return investigations, total
+        return investigations, total, status_counts
 
     async def update_investigation(
         self,

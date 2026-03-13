@@ -228,6 +228,46 @@ class ExplorerResponse(BaseModel):
     items: list[ExplorerItem]
 
 
+class AddToInvestigationRequest(BaseModel):
+    investigation_id: str = Field(min_length=1)
+    blob_paths: list[str] = Field(min_length=1, max_length=50)
+
+
+class AddToInvestigationResult(BaseModel):
+    blob_path: str
+    success: bool
+    file_id: str | None = None
+    error: str | None = None
+
+
+class AddToInvestigationResponse(BaseModel):
+    investigation_id: str
+    results: list[AddToInvestigationResult]
+    total: int
+    succeeded: int
+    failed: int
+
+
+class CopyDocumentsRequest(BaseModel):
+    document_ids: list[str] = Field(min_length=1, max_length=50)
+    investigation_id: str = Field(min_length=1)
+
+
+class CopyDocumentResult(BaseModel):
+    document_id: str
+    success: bool
+    new_file_id: str | None = None
+    error: str | None = None
+
+
+class CopyDocumentsResponse(BaseModel):
+    investigation_id: str
+    results: list[CopyDocumentResult]
+    total: int
+    succeeded: int
+    failed: int
+
+
 # ============================================================================
 # Batch Upload Schemas
 # ============================================================================

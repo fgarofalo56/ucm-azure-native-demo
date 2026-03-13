@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { ExplorerResponse } from "./types";
+import type { AddToInvestigationResponse, ExplorerResponse } from "./types";
 
 export async function browseExplorer(
   prefix = "",
@@ -24,5 +24,16 @@ export async function deleteExplorerFiles(
   const { data } = await apiClient.delete("/explorer/files", {
     data: paths,
   });
+  return data;
+}
+
+export async function addFilesToInvestigation(
+  investigationId: string,
+  blobPaths: string[],
+): Promise<AddToInvestigationResponse> {
+  const { data } = await apiClient.post<AddToInvestigationResponse>(
+    "/explorer/add-to-investigation",
+    { investigation_id: investigationId, blob_paths: blobPaths },
+  );
   return data;
 }

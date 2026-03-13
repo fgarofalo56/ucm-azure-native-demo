@@ -187,7 +187,7 @@ export function DocumentUpload({
         <div className="space-y-1.5">
           {fileProgress.map((fp, idx) => (
             <div
-              key={idx}
+              key={fp.name}
               className={clsx(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
                 "bg-secondary-50 dark:bg-secondary-800/50",
