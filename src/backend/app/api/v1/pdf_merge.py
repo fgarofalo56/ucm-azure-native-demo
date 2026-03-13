@@ -57,15 +57,24 @@ async def merge_pdfs(
             )
 
         # Determine which path to use (PDF or original if already PDF)
-        if document.pdf_conversion_status == PdfConversionStatus.NOT_REQUIRED:
-            pdf_data = await blob_svc.download_blob(document.blob_path)
-        elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and document.pdf_path:
-            pdf_data = await blob_svc.download_blob(document.pdf_path)
-        else:
+        try:
+            if document.pdf_conversion_status == PdfConversionStatus.NOT_REQUIRED:
+                pdf_data = await blob_svc.download_blob(document.blob_path)
+            elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and document.pdf_path:
+                pdf_data = await blob_svc.download_blob(document.pdf_path)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"PDF not available for {file_id}. Status: {document.pdf_conversion_status}",
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("blob_download_failed", file_id=file_id, error=str(e))
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"PDF not available for {file_id}. Status: {document.pdf_conversion_status}",
-            )
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to download document {file_id} from storage",
+            ) from e
 
         total_size += len(pdf_data)
         if total_size > settings.max_merge_size_bytes:
