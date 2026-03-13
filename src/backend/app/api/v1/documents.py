@@ -194,6 +194,10 @@ async def download_pdf(
         data = await blob_svc.download_blob(document.pdf_path)
         base = document.original_filename.rsplit(".", 1)[0]
         filename = f"{base}.pdf"
+    elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and not document.pdf_path:
+        # PDF files marked completed without a separate pdf_path — use original
+        data = await blob_svc.download_blob(document.blob_path)
+        filename = document.original_filename
     else:
         # Return appropriate status codes based on conversion state
         if document.pdf_conversion_status in (

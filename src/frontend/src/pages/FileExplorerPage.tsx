@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useExplorer } from "../hooks/useExplorer";
+import { downloadExplorerFile } from "../api/explorer";
 import { formatDistanceToNow } from "date-fns";
 
 function formatBytes(bytes: number): string {
@@ -24,7 +25,25 @@ export function FileExplorerPage() {
   const [prefix, setPrefix] = useState("");
   const { data, isLoading } = useExplorer(prefix);
 
+  const [downloading, setDownloading] = useState<string | null>(null);
   const items = data?.items ?? [];
+
+  const handleDownload = async (path: string, name: string) => {
+    setDownloading(path);
+    try {
+      const blob = await downloadExplorerFile(path);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silently fail
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   // Build breadcrumb from prefix
   const parts = prefix
@@ -149,14 +168,21 @@ export function FileExplorerPage() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
+                          onClick={() => handleDownload(item.path, item.name)}
+                          disabled={downloading === item.path}
                           className={clsx(
                             "rounded-lg p-1.5",
                             "text-secondary-400 hover:text-primary-600 hover:bg-primary-50",
                             "dark:hover:text-primary-400 dark:hover:bg-primary-500/10",
+                            "disabled:opacity-50",
                           )}
                           title="Download"
                         >
-                          <Download className="h-4 w-4" />
+                          {downloading === item.path ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
                         </button>
                         <button
                           className={clsx(

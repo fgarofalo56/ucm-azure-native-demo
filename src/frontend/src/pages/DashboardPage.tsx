@@ -209,7 +209,7 @@ export function DashboardPage() {
             </h3>
             {barChartData.length > 0 ? (
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" debounce={50}>
                   <BarChart
                     data={barChartData}
                     margin={{ top: 5, right: 20, left: 0, bottom: 60 }}
@@ -261,7 +261,7 @@ export function DashboardPage() {
             </h3>
             {pieChartData.length > 0 ? (
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" debounce={50}>
                   <PieChart>
                     <Pie
                       data={pieChartData}

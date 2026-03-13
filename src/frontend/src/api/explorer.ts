@@ -10,6 +10,14 @@ export async function browseExplorer(
   return data;
 }
 
+export async function downloadExplorerFile(path: string): Promise<Blob> {
+  const { data } = await apiClient.get("/explorer/download", {
+    params: { path },
+    responseType: "blob",
+  });
+  return data;
+}
+
 export async function deleteExplorerFiles(
   paths: string[],
 ): Promise<{ deleted: number; errors: string[] }> {

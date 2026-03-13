@@ -62,6 +62,9 @@ async def merge_pdfs(
                 pdf_data = await blob_svc.download_blob(document.blob_path)
             elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and document.pdf_path:
                 pdf_data = await blob_svc.download_blob(document.pdf_path)
+            elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and not document.pdf_path:
+                # PDF files marked completed without a separate pdf_path — use original
+                pdf_data = await blob_svc.download_blob(document.blob_path)
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,

@@ -3,7 +3,8 @@
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 
 from app.db.models import AppUser
 from app.dependencies import get_blob_service_client
@@ -61,6 +62,31 @@ async def browse_explorer(
             )
 
     return ExplorerResponse(prefix=prefix, items=items)
+
+
+@router.get("/download")
+async def download_explorer_file(
+    app_user: Annotated[AppUser, Depends(require_permission("documents", "download"))],
+    path: str = Query(min_length=1, max_length=1000),
+) -> StreamingResponse:
+    """Download a single file from blob storage by path."""
+    blob_svc = BlobService(get_blob_service_client())
+
+    try:
+        data = await blob_svc.download_blob(path)
+    except Exception as e:
+        logger.error("explorer_download_failed", path=path, error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"File not found: {path}",
+        ) from e
+
+    filename = path.rsplit("/", 1)[-1]
+    return StreamingResponse(
+        iter([data]),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.delete("/files")
