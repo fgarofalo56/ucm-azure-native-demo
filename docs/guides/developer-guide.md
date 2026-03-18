@@ -33,7 +33,7 @@ This guide covers everything you need to set up a local development environment,
 | Azure CLI | Latest | Azure resource interaction, local auth |
 | ODBC Driver 18 for SQL Server | Latest | Azure SQL connectivity |
 | Azure Functions Core Tools | 4.x | Local Functions development |
-| Docker (optional) | Latest | Running Gotenberg locally (if using `PDF_ENGINE=gotenberg` fallback) |
+| Docker (optional) | Latest | Running Gotenberg locally (if using opensource engine with Office conversion) |
 
 ### 🚀 Clone and Initialize
 

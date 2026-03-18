@@ -18,8 +18,11 @@ info:
     End users see only the latest version; administrators can access historical versions
     and rollback if needed.
 
-    ## PDF Conversion
-    The system uses Aspose.Words as the default PDF engine for document conversions.
+    ## PDF Conversion & Configuration
+    The system supports multiple PDF conversion engines (open-source Gotenberg and Aspose)
+    configurable via the admin settings API. PDF engine selection, license keys, and
+    malware scanning are managed dynamically without requiring environment variable changes
+    or application restarts. Configured via `/api/v1/admin/settings` (admin only).
     PDF conversion is tracked asynchronously; check `pdf_conversion_status` for
     progress (pending, processing, completed, failed, not_required).
 
@@ -415,6 +418,51 @@ components:
       properties:
         detail:
           type: string
+
+    # ========================================================================
+    # Admin Settings Schema
+    # ========================================================================
+
+    SystemSettings:
+      type: object
+      description: Admin-configurable system settings stored in the database
+      additionalProperties:
+        type: object
+        properties:
+          value:
+            type: string
+          description:
+            type: string
+            nullable: true
+          updated_at:
+            type: string
+            format: date-time
+            nullable: true
+          updated_by:
+            type: string
+            nullable: true
+          is_sensitive:
+            type: boolean
+            description: "If true, the value is masked (license keys)"
+      example:
+        pdf_engine:
+          value: "opensource"
+          description: "PDF conversion engine: 'opensource' or 'aspose'"
+          updated_at: "2026-03-18T00:00:00Z"
+          updated_by: null
+          is_sensitive: false
+        malware_scanning_enabled:
+          value: "true"
+          description: "Enable two-phase upload with malware scanning"
+          updated_at: "2026-03-18T00:00:00Z"
+          updated_by: null
+          is_sensitive: false
+        aspose_words_license:
+          value: "••••cdef"
+          description: "Aspose.Words license key"
+          updated_at: null
+          updated_by: null
+          is_sensitive: true
 
 paths:
   # ========================================================================
@@ -911,6 +959,78 @@ paths:
           description: Admin role required
         "404":
           description: Document or version not found
+
+  # ========================================================================
+  # Admin Settings Endpoints
+  # ========================================================================
+
+  /api/v1/admin/settings:
+    get:
+      summary: Get system settings
+      description: |
+        Returns all configurable system settings including PDF engine selection,
+        license key status (masked), and malware scanning configuration.
+        Requires roles.manage permission (admin only).
+      tags: [Admin - Settings]
+      responses:
+        "200":
+          description: Current system settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+        "403":
+          description: Admin role required
+    put:
+      summary: Update system settings
+      description: |
+        Update one or more system settings. Accepts a JSON object of {key: value} pairs.
+        Valid keys: pdf_engine, aspose_words_license, aspose_cells_license,
+        aspose_slides_license, malware_scanning_enabled, gotenberg_url.
+        Settings take effect immediately (no restart required).
+        Requires roles.manage permission (admin only).
+      tags: [Admin - Settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pdf_engine:
+                  type: string
+                  enum: [opensource, aspose]
+                  description: "PDF conversion engine selection"
+                aspose_words_license:
+                  type: string
+                  description: "Aspose.Words license key"
+                aspose_cells_license:
+                  type: string
+                  description: "Aspose.Cells license key"
+                aspose_slides_license:
+                  type: string
+                  description: "Aspose.Slides license key"
+                malware_scanning_enabled:
+                  type: string
+                  enum: ["true", "false"]
+                  description: "Enable two-phase upload with malware scanning"
+                gotenberg_url:
+                  type: string
+                  description: "Gotenberg URL for Office conversion fallback (opensource engine)"
+              example:
+                pdf_engine: "opensource"
+                malware_scanning_enabled: "true"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemSettings"
+        "400":
+          description: Invalid setting key or value
+        "403":
+          description: Admin role required
 
   # ========================================================================
   # Audit Endpoints

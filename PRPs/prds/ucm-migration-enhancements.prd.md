@@ -443,13 +443,14 @@ class PdfConverter(Protocol):
 ```
 
 **Implementations:**
-- `GotenbergConverter` — current engine, wraps HTTP calls to Gotenberg
-- `AsposeConverter` — future engine, wraps Aspose SDK calls
+- `opensource` engine — Pillow (images) + fpdf2 (text/CSV) + optional Gotenberg (Office)
+- `aspose` engine — Aspose.Words/Cells/Slides (licensed) for Office formats
 
-**Engine Selection:**
-- Environment variable `PDF_ENGINE=gotenberg|aspose`
-- Factory pattern at startup: `get_pdf_converter(engine: str) -> PdfConverter`
-- Hot-swap via config change + restart (no redeploy)
+**Engine Selection (Actual Implementation):**
+- Stored in `system_settings` DB table (key: `pdf_engine`, value: `opensource` or `aspose`)
+- Configurable via Admin Settings UI — no code changes or restarts needed
+- Aspose license keys also stored in DB, configurable via admin UI
+- Gotenberg URL configurable for opensource Office conversion fallback
 
 **Business Rules:**
 - MIME-based routing works identically across engines

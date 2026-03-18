@@ -22,13 +22,13 @@ Different file types benefit from different conversion methods. A single tool do
 
 Use a hybrid approach with a **pluggable `PdfConverter` protocol**:
 
-- **Aspose** (default): Word via `aspose.words`, Excel via `aspose.cells`, PowerPoint via `aspose.slides`
-- **Gotenberg** (fallback): Office documents via LibreOffice HTTP API
-- **Pillow + img2pdf** (in-process): Images — lossless, no external call
-- **fpdf2** (in-process): Plain text and RTF
+- **Open Source** (default): Pillow (images), fpdf2 (text/CSV/RTF), optional Gotenberg (Office)
+- **Aspose** (licensed): Aspose.Words, Aspose.Cells, Aspose.Slides for Office formats
+- **Pillow** (in-process): Images — lossless, no external call
+- **fpdf2** (in-process): Plain text, CSV, and RTF
 - **pypdf** (backend): PDF merging (type-based ordering)
 
-Engine selection via `PDF_ENGINE` environment variable (`aspose` or `gotenberg`).
+Engine selection via the **admin settings UI** (`system_settings` DB table), not environment variables. Settings are hot-swappable — no restart required. Aspose license keys are also configurable via the admin UI.
 
 ---
 

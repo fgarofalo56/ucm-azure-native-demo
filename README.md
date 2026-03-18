@@ -300,6 +300,8 @@ az deployment sub create --location eastus \
 | `GET` | `/api/v1/admin/users` | `users.read` | List all users |
 | `GET` | `/api/v1/admin/roles` | `roles.manage` | List all roles |
 | `PUT` | `/api/v1/admin/users/{id}/roles` | `roles.manage` | Assign roles to user |
+| `GET` | `/api/v1/admin/settings` | `roles.manage` | Get system settings (PDF engine, scanning, licenses) |
+| `PUT` | `/api/v1/admin/settings` | `roles.manage` | Update system settings (hot-swappable, no restart) |
 
 ### Other
 
@@ -329,9 +331,11 @@ See [`src/backend/.env.example`](src/backend/.env.example) for the complete refe
 | `ENTRA_TENANT_ID` | Entra ID tenant | — |
 | `ENTRA_CLIENT_ID` | API app registration client ID | — |
 | `ENTRA_AUDIENCE` | JWT audience | `api://assurancenet-api` |
-| `PDF_ENGINE` | PDF conversion engine (`aspose` or `gotenberg`) | `aspose` |
+| `PDF_ENGINE` | PDF engine env fallback (overridden by admin settings DB) | `aspose` |
 | `MAX_UPLOAD_SIZE_MB` | Max file upload size | `500` |
 | `MAX_MERGE_FILES` | Max files in PDF merge | `50` |
+
+> **Note:** PDF engine selection, Aspose license keys, Gotenberg URL, and malware scanning are configured via the **Admin Settings UI** (stored in the `system_settings` DB table). The `PDF_ENGINE` env var is only used as a fallback when DB settings are unavailable.
 
 ---
 
@@ -341,4 +345,4 @@ MIT
 
 ---
 
-*Last updated: 2026-03-17*
+*Last updated: 2026-03-18*

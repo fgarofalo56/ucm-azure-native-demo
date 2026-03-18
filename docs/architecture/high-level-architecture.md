@@ -2,7 +2,7 @@
 
 # High-Level Architecture
 
-> **TL;DR:** AssuranceNet is an Azure-native document management system replacing Oracle UCM for FSIS. It uses an explicit document versioning model (logical Document + immutable DocumentVersion) with latest-only visibility for end users. Azure Blob Storage holds versioned binaries, FastAPI provides the backend API, React is a removable reference client, and an Event Grid + Functions pipeline handles async PDF conversion via a pluggable engine (Aspose default, Gotenberg fallback). Malware scanning uses a two-phase upload through a staging container. All services authenticate via Managed Identities with zero secrets.
+> **TL;DR:** AssuranceNet is an Azure-native document management system replacing Oracle UCM for FSIS. It uses an explicit document versioning model (logical Document + immutable DocumentVersion) with latest-only visibility for end users. Azure Blob Storage holds versioned binaries in deterministic paths, FastAPI provides the backend API, React is a removable reference client. PDF conversion runs in-process with a dual-engine architecture (OpenSource or Aspose) configurable via the admin settings UI (`system_settings` DB table) — no restarts needed. Malware scanning uses a two-phase upload through a staging container. All services authenticate via Managed Identities with zero secrets.
 
 ---
 
@@ -96,7 +96,7 @@ graph TB
 | **Azure Blob Storage** over SharePoint | 700K+ files at TB scale |
 | **Explicit document versioning** | Logical Document + immutable DocumentVersion; latest-only visibility for end users |
 | **Event Grid + Functions** for PDF pipeline | Async, event-driven conversion |
-| **Aspose** (pluggable) for Office conversion | Production-grade fidelity; Gotenberg available as fallback via `PDF_ENGINE` config |
+| **Dual PDF engine** (admin-configurable) | OpenSource (Pillow+fpdf2+Gotenberg) or Aspose (licensed); selected via admin settings UI, stored in DB, hot-swappable |
 | **Two-phase upload** with malware scanning | Staging container → scan → promote to production |
 | **Type-based merge ordering** | PDF merge sorted by `document_type`, not user order |
 | **Managed Identities** for service auth | Zero-secret service-to-service authentication |

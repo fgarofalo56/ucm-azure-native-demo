@@ -22,11 +22,11 @@ Need to convert Microsoft Office documents (DOCX, XLSX, PPTX, etc.) to PDF for t
 
 Use **Aspose** (aspose.words, aspose.cells, aspose.slides) as the default PDF conversion engine, with **Gotenberg** (LibreOffice-based) available as a configurable fallback.
 
-Engine selection is controlled via the `PDF_ENGINE` environment variable:
-- `aspose` (default) — Production-grade, licensed
-- `gotenberg` — Demo/OSS fallback, requires running container
+Engine selection is controlled via the **admin settings UI** (stored in the `system_settings` database table):
+- `opensource` (default) — Pillow (images) + fpdf2 (text/CSV) + optional Gotenberg (Office)
+- `aspose` — Production-grade, licensed (Aspose.Words + Cells + Slides)
 
-The engine swap requires zero code changes — only a config update and restart.
+The engine swap requires zero code changes and zero restarts — settings are read from the database per request. Aspose license keys are also stored in the DB and configurable via the admin UI.
 
 ### Engine Routing
 

@@ -50,28 +50,34 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Blob as Azure Blob Storage
-    participant EG as Event Grid
-    participant Func as Azure Function
-    participant Got as Gotenberg
+    participant API as FastAPI Backend
+    participant Settings as system_settings DB
+    participant Staging as Staging Container
+    participant Blob as Production Blob Storage
     participant SQL as Azure SQL DB
-    participant Audit as Audit Log
 
-    Blob->>EG: BlobCreated event (filtered: /blob/ path, non-PDF)
-    EG->>Func: Trigger pdf_converter function
-    Func->>Blob: Download original file
-    Blob-->>Func: File binary
-    alt Image file (JPEG, PNG, TIFF, BMP)
-        Func->>Func: Convert with Pillow + img2pdf
-    else Office document (DOCX, XLSX, PPTX)
-        Func->>Got: POST /forms/libreoffice/convert
-        Got-->>Func: PDF binary
-    else Plain text (TXT, RTF)
-        Func->>Func: Convert with fpdf2
+    API->>Settings: Read pdf_engine + malware_scanning_enabled
+    alt Malware scanning enabled
+        API->>Staging: Upload to staging container
+        Note over Staging: Defender for Storage scans
+        API->>Blob: Promote clean file to production
+    else Scanning disabled
+        API->>Blob: Upload directly to production
     end
-    Func->>Blob: Upload PDF to .../{FileId}/pdf/{filename}.pdf
-    Func->>SQL: UPDATE pdf_conversion_status='completed'
-    Func->>Audit: Log: document.pdf_converted
+    API->>Blob: Upload to .../{documentId}/original/v{N}/{filename}
+    alt Image file (JPEG, PNG, TIFF, BMP)
+        API->>API: Convert with Pillow (in-process)
+    else Text/CSV file
+        API->>API: Convert with fpdf2 (in-process)
+    else Office document (DOCX, XLSX, PPTX)
+        alt Engine = aspose
+            API->>API: Convert with Aspose SDK (licensed)
+        else Engine = opensource + Gotenberg URL set
+            API->>API: Convert via Gotenberg HTTP API
+        end
+    end
+    API->>Blob: Upload PDF to .../{documentId}/pdf/v{N}/{basename}.pdf
+    API->>SQL: UPDATE document_versions SET pdf_conversion_status='completed'
 ```
 
 > [!NOTE]

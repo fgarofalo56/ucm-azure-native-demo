@@ -33,7 +33,7 @@ Refer to the architecture diagrams in `docs/architecture/` and `docs/diagrams/` 
 |-----------|-----------|---------|
 | **Frontend** | React SPA on Azure Static Web Apps | User interface, served via Azure Front Door |
 | **Backend API** | FastAPI on Azure App Service (Linux containers) | REST API for document management |
-| **PDF Conversion** | Azure Functions + Event Grid + Gotenberg on Container Apps | Automatic document-to-PDF conversion |
+| **PDF Conversion** | In-process (Pillow+fpdf2) + Aspose or Gotenberg (admin-configurable via system_settings) | Automatic document-to-PDF conversion during upload |
 | **Data Layer** | Azure Blob Storage + Azure SQL Database | Documents (blobs) and metadata/audit logs (SQL) |
 | **Security** | Azure Key Vault, Managed Identities, Entra ID, Defender | Identity, secrets, and threat protection |
 | **Monitoring** | Application Insights, Log Analytics, Event Hub | Observability and Splunk integration |
@@ -45,7 +45,7 @@ The infrastructure is organized into five resource groups per environment:
 | Resource Group | Naming Pattern | Purpose |
 |----------------|---------------|---------|
 | **Network** | `rg-assurancenet-network-{env}` | VNet, subnets, NSGs, Azure Front Door, private DNS zones |
-| **App** | `rg-assurancenet-app-{env}` | App Service, Static Web App, Azure Functions, Container Apps (Gotenberg) |
+| **App** | `rg-assurancenet-app-{env}` | Container App (API), Static Web App, Container Registry |
 | **Data** | `rg-assurancenet-data-{env}` | Azure Blob Storage, Azure SQL Server/Database, Event Grid |
 | **Security** | `rg-assurancenet-security-{env}` | Azure Key Vault, Managed Identities |
 | **Monitoring** | `rg-assurancenet-monitoring-{env}` | Log Analytics Workspace, Application Insights (x3), Event Hub (Splunk), Azure Dashboard, Budgets |
