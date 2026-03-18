@@ -30,9 +30,61 @@ from app.services.audit_service import AuditService
 from app.services.blob_service import BlobService
 from app.services.metadata_service import MetadataService
 from app.services.pdf_conversion_service import convert_to_pdf
+from app.services.settings_service import SettingsService
 
 logger = structlog.get_logger()
 router = APIRouter()
+
+
+async def _do_pdf_conversion(
+    file_data: bytes,
+    filename: str,
+    content_type: str | None,
+    session,
+) -> bytes | None:
+    """Read PDF engine settings from DB and convert."""
+    svc = SettingsService(session)
+    engine = await svc.get("pdf_engine")
+    gotenberg_url = await svc.get("gotenberg_url")
+    words_lic = await svc.get("aspose_words_license")
+    cells_lic = await svc.get("aspose_cells_license")
+    slides_lic = await svc.get("aspose_slides_license")
+    return convert_to_pdf(
+        file_data, filename, content_type,
+        engine=engine,
+        gotenberg_url=gotenberg_url,
+        aspose_words_license=words_lic,
+        aspose_cells_license=cells_lic,
+        aspose_slides_license=slides_lic,
+    )
+
+
+async def _upload_with_scanning(
+    blob_svc: BlobService,
+    blob_path: str,
+    file_data: bytes,
+    content_type: str | None,
+    session,
+) -> None:
+    """Upload to staging (if scanning enabled), otherwise direct to production."""
+    svc = SettingsService(session)
+    scanning_enabled = await svc.is_malware_scanning_enabled()
+
+    if scanning_enabled:
+        # Two-phase: upload to staging first
+        await blob_svc.upload_blob(blob_path, file_data, content_type, staging=True)
+        # In production, Defender for Storage scans and an Event Grid subscription
+        # would auto-promote clean files. For the demo, we promote immediately
+        # after upload (scan is async — the scan_status field tracks the result).
+        try:
+            await blob_svc.promote_from_staging(blob_path)
+            logger.info("blob_staged_and_promoted", blob_path=blob_path)
+        except Exception:
+            # If promote fails (staging container may not exist in dev), upload directly
+            logger.warning("staging_promote_failed_direct_upload", blob_path=blob_path)
+            await blob_svc.upload_blob(blob_path, file_data, content_type, staging=False)
+    else:
+        await blob_svc.upload_blob(blob_path, file_data, content_type)
 
 
 def _build_document_response(doc) -> DocumentResponse:
@@ -116,15 +168,15 @@ async def upload_document(
     blob_path = blob_svc.build_blob_path(
         investigation.record_id, str(document.id), version.version_number, filename
     )
-    await blob_svc.upload_blob(blob_path, file_data, content_type)
+    await _upload_with_scanning(blob_svc, blob_path, file_data, content_type, session)
 
     # Update version with actual blob path
     version.blob_path_original = blob_path
     await session.flush()
 
-    # In-process PDF conversion (replaces async Event Grid pipeline)
+    # In-process PDF conversion using configured engine
     if pdf_status == PdfConversionStatus.PENDING:
-        pdf_data = convert_to_pdf(file_data, filename, content_type)
+        pdf_data = await _do_pdf_conversion(file_data, filename, content_type, session)
         if pdf_data:
             pdf_blob_path = blob_svc.build_pdf_path(
                 investigation.record_id, str(document.id), version.version_number, filename
@@ -220,14 +272,14 @@ async def upload_new_version(
     blob_path = blob_svc.build_blob_path(
         investigation.record_id, str(document.id), version.version_number, filename
     )
-    await blob_svc.upload_blob(blob_path, file_data, content_type)
+    await _upload_with_scanning(blob_svc, blob_path, file_data, content_type, session)
 
     version.blob_path_original = blob_path
     await session.flush()
 
-    # In-process PDF conversion
+    # In-process PDF conversion using configured engine
     if pdf_status == PdfConversionStatus.PENDING:
-        pdf_data = convert_to_pdf(file_data, filename, content_type)
+        pdf_data = await _do_pdf_conversion(file_data, filename, content_type, session)
         if pdf_data:
             pdf_blob_path = blob_svc.build_pdf_path(
                 investigation.record_id, str(document.id), version.version_number, filename
@@ -462,13 +514,13 @@ async def batch_upload_documents(
             blob_path = blob_svc.build_blob_path(
                 investigation.record_id, str(document.id), version.version_number, filename
             )
-            await blob_svc.upload_blob(blob_path, file_data, content_type)
+            await _upload_with_scanning(blob_svc, blob_path, file_data, content_type, session)
             version.blob_path_original = blob_path
             await session.flush()
 
-            # In-process PDF conversion
+            # In-process PDF conversion using configured engine
             if pdf_status == PdfConversionStatus.PENDING:
-                pdf_data = convert_to_pdf(file_data, filename, content_type)
+                pdf_data = await _do_pdf_conversion(file_data, filename, content_type, session)
                 if pdf_data:
                     pdf_blob_path = blob_svc.build_pdf_path(
                         investigation.record_id, str(document.id), version.version_number, filename

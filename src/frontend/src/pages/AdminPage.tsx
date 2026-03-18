@@ -1,14 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Shield,
   Loader2,
   Check,
   X,
+  Settings,
+  Save,
+  Key,
+  FileText,
+  ShieldCheck,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useUsers, useRoles, useAssignRoles } from "../hooks/useAdmin";
 import { formatDistanceToNow } from "date-fns";
 import type { AppUser } from "../api/types";
+import {
+  getSystemSettings,
+  updateSystemSettings,
+  type SystemSettings,
+} from "../api/admin";
 
 export function AdminPage() {
   const [page, setPage] = useState(1);
@@ -187,6 +197,9 @@ export function AdminPage() {
           onClose={() => setEditingUser(null)}
         />
       )}
+
+      {/* System Settings */}
+      <SystemSettingsPanel />
     </div>
   );
 }
@@ -298,6 +311,308 @@ function RoleAssignmentModal({
           >
             {assignMutation.isPending ? "Saving..." : "Save Roles"}
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SystemSettingsPanel() {
+  const [settings, setSettings] = useState<SystemSettings | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  // Local form state
+  const [pdfEngine, setPdfEngine] = useState("opensource");
+  const [malwareScanning, setMalwareScanning] = useState(true);
+  const [gotenbergUrl, setGotenbergUrl] = useState("");
+  const [asposeWordsLicense, setAsposeWordsLicense] = useState("");
+  const [asposeCellsLicense, setAsposeCellsLicense] = useState("");
+  const [asposeSlidesLicense, setAsposeSlidesLicense] = useState("");
+
+  useEffect(() => {
+    getSystemSettings()
+      .then((data) => {
+        setSettings(data);
+        setPdfEngine(data.pdf_engine?.value ?? "opensource");
+        setMalwareScanning(
+          (data.malware_scanning_enabled?.value ?? "true").toLowerCase() === "true",
+        );
+        setGotenbergUrl(data.gotenberg_url?.value ?? "");
+        // Don't prefill license keys (they're masked)
+      })
+      .catch((err) => {
+        if (err?.response?.status === 403) {
+          setError("Admin access required to view system settings.");
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccess(false);
+
+    try {
+      const updates: Record<string, string> = {
+        pdf_engine: pdfEngine,
+        malware_scanning_enabled: malwareScanning ? "true" : "false",
+        gotenberg_url: gotenbergUrl,
+      };
+      // Only send license keys if the user typed something new (not masked)
+      if (asposeWordsLicense && !asposeWordsLicense.startsWith("••")) {
+        updates.aspose_words_license = asposeWordsLicense;
+      }
+      if (asposeCellsLicense && !asposeCellsLicense.startsWith("••")) {
+        updates.aspose_cells_license = asposeCellsLicense;
+      }
+      if (asposeSlidesLicense && !asposeSlidesLicense.startsWith("••")) {
+        updates.aspose_slides_license = asposeSlidesLicense;
+      }
+
+      const updated = await updateSystemSettings(updates);
+      setSettings(updated);
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save settings");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="card">
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 text-primary-500 animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !settings) {
+    return (
+      <div className="card">
+        <p className="text-sm text-secondary-500 dark:text-secondary-400 text-center py-8">
+          {error}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 dark:bg-primary-500/10">
+            <Settings className="h-5 w-5 text-primary-600 dark:text-primary-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-secondary-900 dark:text-secondary-100">
+              System Settings
+            </h3>
+            <p className="text-xs text-secondary-500 dark:text-secondary-400">
+              PDF engine, malware scanning, and license configuration
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        {/* PDF Engine Selection */}
+        <div>
+          <label className="flex items-center gap-2 text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-3">
+            <FileText className="h-4 w-4" />
+            PDF Conversion Engine
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              onClick={() => setPdfEngine("opensource")}
+              className={clsx(
+                "rounded-xl border p-4 text-left transition-all",
+                pdfEngine === "opensource"
+                  ? "border-primary-500 bg-primary-50/50 dark:bg-primary-500/10 dark:border-primary-500/50"
+                  : "border-secondary-200 hover:border-secondary-300 dark:border-secondary-700",
+              )}
+            >
+              <p className="text-sm font-medium text-secondary-900 dark:text-secondary-100">
+                Open Source
+              </p>
+              <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-1">
+                Pillow (images) + fpdf2 (text/CSV) + Gotenberg (Office, optional)
+              </p>
+              {pdfEngine === "opensource" && (
+                <Check className="h-4 w-4 text-primary-600 dark:text-primary-400 mt-2" />
+              )}
+            </button>
+            <button
+              onClick={() => setPdfEngine("aspose")}
+              className={clsx(
+                "rounded-xl border p-4 text-left transition-all",
+                pdfEngine === "aspose"
+                  ? "border-primary-500 bg-primary-50/50 dark:bg-primary-500/10 dark:border-primary-500/50"
+                  : "border-secondary-200 hover:border-secondary-300 dark:border-secondary-700",
+              )}
+            >
+              <p className="text-sm font-medium text-secondary-900 dark:text-secondary-100">
+                Aspose (Licensed)
+              </p>
+              <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-1">
+                Aspose.Words + Cells + Slides for production-grade Office conversion
+              </p>
+              {pdfEngine === "aspose" && (
+                <Check className="h-4 w-4 text-primary-600 dark:text-primary-400 mt-2" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Gotenberg URL (for opensource engine) */}
+        {pdfEngine === "opensource" && (
+          <div>
+            <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-1.5">
+              Gotenberg URL (optional — for Office format conversion)
+            </label>
+            <input
+              type="text"
+              value={gotenbergUrl}
+              onChange={(e) => setGotenbergUrl(e.target.value)}
+              placeholder="e.g. http://gotenberg:3000"
+              className="form-input w-full"
+            />
+            <p className="text-xs text-secondary-400 mt-1">
+              Leave empty if you don&apos;t need Office document conversion
+            </p>
+          </div>
+        )}
+
+        {/* Aspose License Keys (for aspose engine) */}
+        {pdfEngine === "aspose" && (
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-secondary-700 dark:text-secondary-300">
+              <Key className="h-4 w-4" />
+              Aspose License Keys
+            </label>
+            <div>
+              <label className="block text-xs text-secondary-500 mb-1">
+                Aspose.Words License
+              </label>
+              <input
+                type="password"
+                value={asposeWordsLicense}
+                onChange={(e) => setAsposeWordsLicense(e.target.value)}
+                placeholder={
+                  settings?.aspose_words_license?.value
+                    ? settings.aspose_words_license.value
+                    : "Paste license key"
+                }
+                className="form-input w-full font-mono text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-secondary-500 mb-1">
+                Aspose.Cells License
+              </label>
+              <input
+                type="password"
+                value={asposeCellsLicense}
+                onChange={(e) => setAsposeCellsLicense(e.target.value)}
+                placeholder={
+                  settings?.aspose_cells_license?.value
+                    ? settings.aspose_cells_license.value
+                    : "Paste license key"
+                }
+                className="form-input w-full font-mono text-xs"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-secondary-500 mb-1">
+                Aspose.Slides License
+              </label>
+              <input
+                type="password"
+                value={asposeSlidesLicense}
+                onChange={(e) => setAsposeSlidesLicense(e.target.value)}
+                placeholder={
+                  settings?.aspose_slides_license?.value
+                    ? settings.aspose_slides_license.value
+                    : "Paste license key"
+                }
+                className="form-input w-full font-mono text-xs"
+              />
+            </div>
+            <p className="text-xs text-secondary-400">
+              Without valid licenses, Aspose runs in evaluation mode (watermarked output).
+              Images and text/CSV always use the free open-source converters.
+            </p>
+          </div>
+        )}
+
+        {/* Malware Scanning Toggle */}
+        <div className="flex items-center justify-between rounded-xl border border-secondary-200 dark:border-secondary-700 p-4">
+          <div className="flex items-center gap-3">
+            <ShieldCheck className="h-5 w-5 text-success-600 dark:text-success-400" />
+            <div>
+              <p className="text-sm font-medium text-secondary-900 dark:text-secondary-100">
+                Malware Scanning
+              </p>
+              <p className="text-xs text-secondary-500 dark:text-secondary-400">
+                Two-phase upload: files staged for scanning before promotion to production storage
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setMalwareScanning(!malwareScanning)}
+            className={clsx(
+              "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors",
+              malwareScanning
+                ? "bg-success-600 dark:bg-success-500"
+                : "bg-secondary-300 dark:bg-secondary-600",
+            )}
+          >
+            <span
+              className={clsx(
+                "inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform mt-0.5",
+                malwareScanning ? "translate-x-5 ml-0.5" : "translate-x-0.5",
+              )}
+            />
+          </button>
+        </div>
+
+        {/* Save button */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className={clsx(
+              "inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-colors",
+              "bg-primary-600 text-white hover:bg-primary-700",
+              "dark:bg-primary-500 dark:hover:bg-primary-600",
+              "disabled:opacity-50",
+            )}
+          >
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+            {saving ? "Saving..." : "Save Settings"}
+          </button>
+          {success && (
+            <span className="flex items-center gap-1.5 text-sm text-success-600 dark:text-success-400">
+              <Check className="h-4 w-4" />
+              Settings saved
+            </span>
+          )}
+          {error && (
+            <span className="text-sm text-danger-600 dark:text-danger-400">
+              {error}
+            </span>
+          )}
         </div>
       </div>
     </div>

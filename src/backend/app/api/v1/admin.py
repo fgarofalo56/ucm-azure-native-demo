@@ -1,10 +1,10 @@
-"""Admin endpoints: user management, role assignment, document version management, rollback."""
+"""Admin endpoints: user management, role assignment, document version management, rollback, system settings."""
 
 import uuid
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,7 @@ from app.models.schemas import (
     RollbackResponse,
     UserRoleAssignment,
 )
+from app.services.settings_service import SettingsService
 from app.services.audit_service import AuditService
 from app.services.blob_service import BlobService
 from app.services.metadata_service import MetadataService
@@ -263,3 +264,66 @@ async def rollback_document(
         promoted_version=promoted.version_number,
         new_current_version_id=promoted.id,
     )
+
+
+# ============================================================================
+# System Settings (Admin Only)
+# ============================================================================
+
+
+@router.get("/settings")
+async def get_system_settings(
+    app_user: Annotated[AppUser, Depends(require_permission("roles", "manage"))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Get all system settings. Admin only. Sensitive values are masked."""
+    svc = SettingsService(session)
+    return await svc.get_all()
+
+
+@router.put("/settings")
+async def update_system_settings(
+    updates: Annotated[dict[str, str], Body(embed=False)],
+    app_user: Annotated[AppUser, Depends(require_permission("roles", "manage"))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> dict:
+    """Update system settings. Admin only.
+
+    Accepts a JSON object of {key: value} pairs to update.
+    Valid keys: pdf_engine, aspose_words_license, aspose_cells_license,
+    aspose_slides_license, malware_scanning_enabled, gotenberg_url
+    """
+    audit_svc = AuditService(session)
+    svc = SettingsService(session)
+
+    valid_keys = {
+        "pdf_engine", "aspose_words_license", "aspose_cells_license",
+        "aspose_slides_license", "malware_scanning_enabled", "gotenberg_url",
+    }
+    invalid = set(updates.keys()) - valid_keys
+    if invalid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid setting keys: {', '.join(invalid)}",
+        )
+
+    # Validate pdf_engine value
+    if "pdf_engine" in updates and updates["pdf_engine"] not in ("opensource", "aspose"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="pdf_engine must be 'opensource' or 'aspose'",
+        )
+
+    await svc.set_many(updates, user_id=app_user.entra_oid)
+
+    await audit_svc.log_event(
+        event_type=AuditEventType.USER_ROLE_CHANGED,
+        user_id=app_user.entra_oid,
+        user_principal_name=app_user.email,
+        action="update",
+        result="success",
+        resource_type="system_settings",
+        details={"updated_keys": list(updates.keys())},
+    )
+
+    return await svc.get_all()

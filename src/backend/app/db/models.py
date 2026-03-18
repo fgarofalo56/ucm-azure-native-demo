@@ -205,6 +205,20 @@ class DocumentVersion(Base):
     )
 
 
+class SystemSetting(Base):
+    """Key-value system settings configurable by admins."""
+
+    __tablename__ = "system_settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    updated_by: Mapped[str | None] = mapped_column(String(255))
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
