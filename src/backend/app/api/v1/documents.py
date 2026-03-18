@@ -29,6 +29,7 @@ from app.models.schemas import (
 from app.services.audit_service import AuditService
 from app.services.blob_service import BlobService
 from app.services.metadata_service import MetadataService
+from app.services.pdf_conversion_service import convert_to_pdf
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -121,6 +122,20 @@ async def upload_document(
     version.blob_path_original = blob_path
     await session.flush()
 
+    # In-process PDF conversion (replaces async Event Grid pipeline)
+    if pdf_status == PdfConversionStatus.PENDING:
+        pdf_data = convert_to_pdf(file_data, filename, content_type)
+        if pdf_data:
+            pdf_blob_path = blob_svc.build_pdf_path(
+                investigation.record_id, str(document.id), version.version_number, filename
+            )
+            await blob_svc.upload_blob(pdf_blob_path, pdf_data, "application/pdf")
+            version.blob_path_pdf = pdf_blob_path
+            version.pdf_conversion_status = PdfConversionStatus.COMPLETED
+            pdf_status = PdfConversionStatus.COMPLETED
+            await session.flush()
+            logger.info("pdf_converted_inline", document_id=str(document.id), pdf_path=pdf_blob_path)
+
     await audit_svc.log_event(
         event_type=AuditEventType.DOCUMENT_UPLOAD,
         user_id=app_user.entra_oid,
@@ -209,6 +224,19 @@ async def upload_new_version(
 
     version.blob_path_original = blob_path
     await session.flush()
+
+    # In-process PDF conversion
+    if pdf_status == PdfConversionStatus.PENDING:
+        pdf_data = convert_to_pdf(file_data, filename, content_type)
+        if pdf_data:
+            pdf_blob_path = blob_svc.build_pdf_path(
+                investigation.record_id, str(document.id), version.version_number, filename
+            )
+            await blob_svc.upload_blob(pdf_blob_path, pdf_data, "application/pdf")
+            version.blob_path_pdf = pdf_blob_path
+            version.pdf_conversion_status = PdfConversionStatus.COMPLETED
+            pdf_status = PdfConversionStatus.COMPLETED
+            await session.flush()
 
     await audit_svc.log_event(
         event_type=AuditEventType.DOCUMENT_UPLOAD,
@@ -437,6 +465,18 @@ async def batch_upload_documents(
             await blob_svc.upload_blob(blob_path, file_data, content_type)
             version.blob_path_original = blob_path
             await session.flush()
+
+            # In-process PDF conversion
+            if pdf_status == PdfConversionStatus.PENDING:
+                pdf_data = convert_to_pdf(file_data, filename, content_type)
+                if pdf_data:
+                    pdf_blob_path = blob_svc.build_pdf_path(
+                        investigation.record_id, str(document.id), version.version_number, filename
+                    )
+                    await blob_svc.upload_blob(pdf_blob_path, pdf_data, "application/pdf")
+                    version.blob_path_pdf = pdf_blob_path
+                    version.pdf_conversion_status = PdfConversionStatus.COMPLETED
+                    await session.flush()
 
             results.append(
                 BatchUploadResult(

@@ -1,7 +1,9 @@
 """Alembic environment configuration for async migrations."""
 
 import asyncio
+import os
 from logging.config import fileConfig
+from urllib.parse import quote_plus
 
 from alembic import context
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -15,9 +17,36 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def _get_url() -> str:
+    """Build connection string from env vars (Azure) or fall back to alembic.ini (local dev)."""
+    sql_server = os.environ.get("AZURE_SQL_SERVER")
+    sql_database = os.environ.get("AZURE_SQL_DATABASE")
+
+    if sql_server and sql_database:
+        client_id = os.environ.get("AZURE_CLIENT_ID", "")
+        # Use Managed Identity in Azure, Interactive auth locally
+        auth_mode = os.environ.get("SQL_AUTH_MODE", "")
+        if not auth_mode:
+            auth_mode = "ActiveDirectoryInteractive" if not client_id else "ActiveDirectoryManagedIdentity"
+        uid_part = f"UID={client_id};" if client_id and auth_mode == "ActiveDirectoryManagedIdentity" else ""
+        odbc_connect = (
+            "Driver={ODBC Driver 18 for SQL Server};"
+            f"Server=tcp:{sql_server},1433;"
+            f"Database={sql_database};"
+            "Encrypt=yes;"
+            "TrustServerCertificate=no;"
+            "Connection Timeout=30;"
+            f"Authentication={auth_mode};"
+            f"{uid_part}"
+        )
+        return f"mssql+aioodbc:///?odbc_connect={quote_plus(odbc_connect)}"
+
+    return config.get_main_option("sqlalchemy.url")
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode - generates SQL script."""
-    url = config.get_main_option("sqlalchemy.url")
+    url = _get_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -37,8 +66,12 @@ def do_run_migrations(connection) -> None:
 
 async def run_async_migrations() -> None:
     """Run migrations in 'online' mode with async engine."""
+    url = _get_url()
+    ini_section = dict(config.get_section(config.config_ini_section, {}))
+    ini_section["sqlalchemy.url"] = url
+
     connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
+        ini_section,
         prefix="sqlalchemy.",
     )
 
