@@ -107,9 +107,9 @@ The `temp/` folder is gitignored.
 |-----------|-----------|----------|
 | **Frontend** | React 18 + TypeScript + Vite | `src/frontend/` |
 | **Backend API** | Python 3.11+ FastAPI | `src/backend/` |
-| **PDF Pipeline** | Azure Functions + Event Grid + Gotenberg | `src/functions/` |
-| **Infrastructure** | Azure Bicep (16+ modules) | `infra/` |
-| **Database** | Azure SQL (SQLAlchemy + Alembic) | `src/backend/app/db/` |
+| **PDF Pipeline** | Azure Functions + Event Grid + Aspose (pluggable) | `src/functions/` |
+| **Infrastructure** | Azure Bicep (18+ modules) | `infra/` |
+| **Database** | Azure SQL (Document + DocumentVersion + RBAC, via SQLAlchemy + Alembic) | `src/backend/app/db/` |
 | **Auth** | Microsoft Entra ID (MSAL) | Both frontend and backend |
 | **Storage** | Azure Blob Storage (versioned) | Backend services |
 | **Monitoring** | OpenTelemetry + Azure Monitor | `src/backend/app/telemetry/` |

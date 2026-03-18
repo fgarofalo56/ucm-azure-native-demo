@@ -33,7 +33,7 @@ This guide covers everything you need to set up a local development environment,
 | Azure CLI | Latest | Azure resource interaction, local auth |
 | ODBC Driver 18 for SQL Server | Latest | Azure SQL connectivity |
 | Azure Functions Core Tools | 4.x | Local Functions development |
-| Docker (optional) | Latest | Running Gotenberg locally for PDF conversion |
+| Docker (optional) | Latest | Running Gotenberg locally (if using `PDF_ENGINE=gotenberg` fallback) |
 
 ### 🚀 Clone and Initialize
 
@@ -281,8 +281,8 @@ All backend code uses `structlog` for structured, JSON-formatted logging that in
 import structlog
 logger = structlog.get_logger()
 
-logger.info("document_uploaded", file_id=file_id, size_bytes=len(data))
-logger.warning("conversion_failed", file_id=file_id, error=str(e))
+logger.info("document_uploaded", document_id=str(document.id), version=version.version_number, size_bytes=len(data))
+logger.warning("conversion_failed", document_id=str(document.id), version=version.version_number, error=str(e))
 ```
 
 > [!TIP]
@@ -488,7 +488,7 @@ flowchart LR
 2. Event Grid detects the `BlobCreated` event and fires the trigger.
 3. The `pdf_converter` function receives the event, extracts the blob path from the subject.
 4. The function downloads the original file, determines the content type, and routes to the appropriate converter.
-5. The converted PDF is uploaded to `{record_id}/{file_id}/pdf/{basename}.pdf`.
+5. The converted PDF is uploaded to `{record_id}/{document_id}/pdf/v{N}/{basename}.pdf`.
 6. Blobs already in `/pdf/` paths are skipped to avoid infinite loops.
 
 ### 💡 Adding a New Converter
@@ -676,7 +676,7 @@ def test_upload_document(client, mock_auth):
         files={"file": ("test.pdf", b"PDF content", "application/pdf")},
     )
     assert response.status_code == 201
-    assert "file_id" in response.json()
+    assert "document_id" in response.json()
 ```
 
 ### 🧪 Writing E2E Tests (Playwright)

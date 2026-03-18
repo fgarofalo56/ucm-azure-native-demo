@@ -49,17 +49,17 @@ export function DocumentViewer({
         <DetailRow
           icon={<FileText className="h-4 w-4" />}
           label="Filename"
-          value={doc.original_filename}
+          value={doc.original_filename ?? doc.title ?? "Untitled"}
         />
         <DetailRow
           icon={<FileText className="h-4 w-4" />}
           label="Content Type"
-          value={doc.content_type ?? "Unknown"}
+          value={doc.mime_type ?? "Unknown"}
         />
         <DetailRow
           icon={<HardDrive className="h-4 w-4" />}
           label="Size"
-          value={formatSize(doc.file_size_bytes)}
+          value={doc.file_size_bytes != null ? formatSize(doc.file_size_bytes) : "—"}
         />
         <div className="flex items-start gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-100 dark:bg-secondary-800">
@@ -70,7 +70,7 @@ export function DocumentViewer({
               PDF Status
             </dt>
             <dd className="mt-1">
-              <ConversionStatus status={doc.pdf_conversion_status} />
+              <ConversionStatus status={doc.pdf_conversion_status ?? "pending"} />
             </dd>
           </div>
         </div>
@@ -79,25 +79,34 @@ export function DocumentViewer({
           label="SHA-256"
           value={
             <span className="break-all font-mono text-xs">
-              {doc.checksum_sha256}
+              {doc.checksum ?? "—"}
             </span>
           }
         />
         <DetailRow
           icon={<User className="h-4 w-4" />}
           label="Uploaded By"
-          value={doc.uploaded_by_name ?? doc.uploaded_by}
+          value={doc.uploaded_by_name ?? doc.uploaded_by ?? "Unknown"}
         />
-        <DetailRow
-          icon={<Calendar className="h-4 w-4" />}
-          label="Uploaded At"
-          value={format(new Date(doc.uploaded_at), "PPpp")}
-        />
-        {doc.pdf_converted_at && (
+        {doc.uploaded_at && (
+          <DetailRow
+            icon={<Calendar className="h-4 w-4" />}
+            label="Uploaded At"
+            value={format(new Date(doc.uploaded_at), "PPpp")}
+          />
+        )}
+        {doc.document_type && (
+          <DetailRow
+            icon={<FileText className="h-4 w-4" />}
+            label="Document Type"
+            value={doc.document_type.replace(/_/g, " ")}
+          />
+        )}
+        {doc.version_number != null && (
           <DetailRow
             icon={<Hash className="h-4 w-4" />}
-            label="Converted At"
-            value={format(new Date(doc.pdf_converted_at), "PPpp")}
+            label="Version"
+            value={`v${doc.version_number}`}
           />
         )}
       </dl>

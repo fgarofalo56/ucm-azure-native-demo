@@ -185,7 +185,7 @@ export function DocumentUpload({
       {/* Per-file progress */}
       {fileProgress.length > 0 && (
         <div className="space-y-1.5">
-          {fileProgress.map((fp, idx) => (
+          {fileProgress.map((fp) => (
             <div
               key={fp.name}
               className={clsx(

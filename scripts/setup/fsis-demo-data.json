@@ -13,12 +13,14 @@
           "filename": "FSIS-Annual-Sampling-Plan-FY2025.pdf",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/FSIS-Annual-Sampling-Plan-FY2025.pdf",
           "content_type": "application/pdf",
+          "document_type": "investigation_report",
           "description": "FSIS Annual Sampling Program Plan for Fiscal Year 2025"
         },
         {
           "filename": "FSIS-Annual-Sampling-Plan-FY2024.pdf",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/FSIS-Annual-Sampling-Plan-FY2024.pdf",
           "content_type": "application/pdf",
+          "document_type": "investigation_report",
           "description": "FSIS Annual Sampling Program Plan for Fiscal Year 2024"
         }
       ]
@@ -33,18 +35,21 @@
           "filename": "fy2019-red-book.pdf",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/2020-07/fy2019-red-book.pdf",
           "content_type": "application/pdf",
+          "document_type": "laboratory_result",
           "description": "National Residue Program FY2019 Results (Red Book)"
         },
         {
           "filename": "2019-blue-book.pdf",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/2020-07/2019-blue-book.pdf",
           "content_type": "application/pdf",
+          "document_type": "inspection_form",
           "description": "National Residue Program FY2019 Sampling Plan (Blue Book)"
         },
         {
           "filename": "Dataset_QSR_Residue_Tolerances_SummaryReport_FY23Q2.pdf",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/Dataset_QSR_Residue_Tolerances_SummaryReport_FY23Q2.pdf",
           "content_type": "application/pdf",
+          "document_type": "laboratory_result",
           "description": "National Residue Program Quarterly Report (January-March 2023)"
         }
       ]
@@ -59,12 +64,14 @@
           "filename": "FY2024A_Sampling-Summary-Report.pdf",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/FY2024A_Sampling%20Summary%20Report.pdf",
           "content_type": "application/pdf",
+          "document_type": "investigation_report",
           "description": "FSIS FY2024 Annual Sampling Summary Report"
         },
         {
           "filename": "FY2021-Sampling-Summary-Report.pdf",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/2022-02/FY2021-Sampling-Summary-Report.pdf",
           "content_type": "application/pdf",
+          "document_type": "investigation_report",
           "description": "FSIS FY2021 Annual Sampling Summary Report"
         }
       ]
@@ -74,7 +81,15 @@
       "title": "Humane Handling Verification - District 50",
       "description": "Livestock humane handling and poultry good commercial practices inspection task verification for District 50 establishments.",
       "status": "active",
-      "documents": []
+      "documents": [
+        {
+          "filename": "humane-handling-verification-procedures.pdf",
+          "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/PHIS_Directives_6900.2.pdf",
+          "content_type": "application/pdf",
+          "document_type": "inspection_form",
+          "description": "FSIS Directive 6900.2 - Humane Handling and Slaughter of Livestock"
+        }
+      ]
     },
     {
       "record_id": "INVESTIGATION-10005",
@@ -86,18 +101,21 @@
           "filename": "MPI_Directory_by_Establishment_Number.csv",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/MPI_Directory_by_Establishment_Number.csv",
           "content_type": "text/csv",
+          "document_type": "supporting_evidence",
           "description": "MPI Directory sorted by Establishment Number"
         },
         {
           "filename": "MPI_Directory_by_Establishment_Name.csv",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/MPI_Directory_by_Establishment_Name.csv",
           "content_type": "text/csv",
+          "document_type": "supporting_evidence",
           "description": "MPI Directory sorted by Establishment Name"
         },
         {
           "filename": "CSV_Guide.pdf",
           "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/CSV_Guide.pdf",
           "content_type": "application/pdf",
+          "document_type": "correspondence",
           "description": "Instructions for Opening CSV Files from the FSIS Website"
         }
       ]
@@ -107,21 +125,59 @@
       "title": "Quarterly Enforcement Review FY2024",
       "description": "Quarterly enforcement reports covering administrative actions, suspensions, and regulatory citations for FSIS-inspected establishments.",
       "status": "active",
-      "documents": []
+      "documents": [
+        {
+          "filename": "quarterly-enforcement-report-fy2024-q1.pdf",
+          "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/qer-fy2024-q1.pdf",
+          "content_type": "application/pdf",
+          "document_type": "legal_document",
+          "description": "Quarterly Enforcement Report FY2024 Q1 - Administrative Actions"
+        }
+      ]
     },
     {
       "record_id": "INVESTIGATION-10007",
       "title": "STEC Sampling Results Analysis",
       "description": "Shiga toxin-producing Escherichia coli (STEC) sampling program results including E. coli O157:H7 and non-O157 STEC testing in raw beef products.",
       "status": "active",
-      "documents": []
+      "documents": [
+        {
+          "filename": "FSIS-STEC-Testing-Results-FY2024.pdf",
+          "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/STEC-Testing-Results.pdf",
+          "content_type": "application/pdf",
+          "document_type": "laboratory_result",
+          "description": "STEC Testing Results for Raw Beef Products FY2024"
+        },
+        {
+          "filename": "STEC-Sampling-Methodology.pdf",
+          "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/MLG-5C.pdf",
+          "content_type": "application/pdf",
+          "document_type": "inspection_form",
+          "description": "FSIS Microbiology Laboratory Guidebook Chapter 5C - STEC Methodology"
+        }
+      ]
     },
     {
       "record_id": "INVESTIGATION-10008",
       "title": "Import Sampling Program Compliance",
       "description": "Import sampling program compliance review for foreign establishment reinspection at ports of entry.",
-      "status": "active",
-      "documents": []
+      "status": "closed",
+      "documents": [
+        {
+          "filename": "import-reinspection-procedures-9900.1.pdf",
+          "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/9900.1.pdf",
+          "content_type": "application/pdf",
+          "document_type": "legal_document",
+          "description": "FSIS Directive 9900.1 - Import Reinspection Procedures"
+        },
+        {
+          "filename": "foreign-audit-report-2024.pdf",
+          "url": "https://www.fsis.usda.gov/sites/default/files/media_file/documents/Foreign-Audit-Report.pdf",
+          "content_type": "application/pdf",
+          "document_type": "investigation_report",
+          "description": "Foreign Country Audit Report - Import Compliance Summary 2024"
+        }
+      ]
     }
   ],
   "data_sources": {

@@ -1,4 +1,4 @@
-/** TypeScript types for API responses. */
+/** TypeScript types for API responses — version-aware document model. */
 
 export interface Investigation {
   id: string;
@@ -13,42 +13,75 @@ export interface Investigation {
   document_count: number;
 }
 
+export type DocumentType =
+  | "investigation_report"
+  | "inspection_form"
+  | "laboratory_result"
+  | "correspondence"
+  | "supporting_evidence"
+  | "legal_document"
+  | "other";
+
+export type PdfConversionStatus =
+  | "pending"
+  | "processing"
+  | "completed"
+  | "failed"
+  | "not_required";
+
+/** Logical document with latest version metadata inlined. */
 export interface Document {
   id: string;
   investigation_id: string;
-  file_id: string;
+  document_type: DocumentType;
+  title: string | null;
+  created_by: string;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Latest version fields (inlined)
+  current_version_id: string | null;
+  version_number: number | null;
+  original_filename: string | null;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  checksum: string | null;
+  pdf_conversion_status: PdfConversionStatus | null;
+  uploaded_by: string | null;
+  uploaded_by_name: string | null;
+  uploaded_at: string | null;
+}
+
+/** Physical document version — admin-visible only for non-latest. */
+export interface DocumentVersion {
+  id: string;
+  document_id: string;
+  version_number: number;
   original_filename: string;
-  content_type: string | null;
+  mime_type: string | null;
   file_size_bytes: number;
-  pdf_conversion_status:
-    | "pending"
-    | "processing"
-    | "completed"
-    | "failed"
-    | "not_required";
+  checksum: string;
+  is_latest: boolean;
+  pdf_conversion_status: PdfConversionStatus;
   pdf_conversion_error: string | null;
   pdf_converted_at: string | null;
-  checksum_sha256: string;
+  scan_status: string;
+  scanned_at: string | null;
   uploaded_by: string;
   uploaded_by_name: string | null;
   uploaded_at: string;
-  updated_at: string;
-}
-
-export interface DocumentVersion {
-  version_id: string;
-  last_modified: string;
-  content_length: number;
-  is_current: boolean;
 }
 
 export interface DocumentUploadResponse {
-  id: string;
-  file_id: string;
+  document_id: string;
+  version_id: string;
+  version_number: number;
   original_filename: string;
   file_size_bytes: number;
-  checksum_sha256: string;
-  pdf_conversion_status: string;
+  checksum: string;
+  document_type: DocumentType;
+  pdf_conversion_status: PdfConversionStatus;
   blob_path: string;
 }
 
@@ -154,7 +187,7 @@ export interface ExplorerResponse {
 export interface AddToInvestigationResult {
   blob_path: string;
   success: boolean;
-  file_id: string | null;
+  document_id: string | null;
   error: string | null;
 }
 
@@ -169,7 +202,7 @@ export interface AddToInvestigationResponse {
 // Copy documents types
 export interface CopyDocumentsResponse {
   investigation_id: string;
-  results: { document_id: string; success: boolean; new_file_id: string | null; error: string | null }[];
+  results: { document_id: string; success: boolean; new_document_id: string | null; error: string | null }[];
   total: number;
   succeeded: number;
   failed: number;
@@ -179,6 +212,15 @@ export interface CopyDocumentsResponse {
 export interface BatchUploadResult {
   filename: string;
   success: boolean;
-  file_id: string | null;
+  document_id: string | null;
+  version_id: string | null;
   error: string | null;
+}
+
+// Admin types
+export interface RollbackResponse {
+  document_id: string;
+  rolled_back_version: number;
+  promoted_version: number;
+  new_current_version_id: string;
 }

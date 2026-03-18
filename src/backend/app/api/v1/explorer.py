@@ -30,7 +30,7 @@ router = APIRouter()
 
 @router.get("/browse", response_model=ExplorerResponse)
 async def browse_explorer(
-    app_user: Annotated[AppUser, Depends(require_permission("documents", "read"))],
+    app_user: Annotated[AppUser, Depends(require_permission("documents", "versions"))],
     prefix: str = Query("", max_length=500),
 ) -> ExplorerResponse:
     """Browse blob storage with folder/file structure.
@@ -78,7 +78,7 @@ async def browse_explorer(
 
 @router.get("/download")
 async def download_explorer_file(
-    app_user: Annotated[AppUser, Depends(require_permission("documents", "download"))],
+    app_user: Annotated[AppUser, Depends(require_permission("documents", "versions"))],
     path: str = Query(min_length=1, max_length=1000),
 ) -> StreamingResponse:
     """Download a single file from blob storage by path."""
@@ -142,12 +142,9 @@ async def add_files_to_investigation(
     results: list[AddToInvestigationResult] = []
     for blob_path in body.blob_paths:
         try:
-            # Download the source blob
             data = await blob_svc.download_blob(blob_path)
             filename = blob_path.rsplit("/", 1)[-1]
-            file_id = str(uuid.uuid4())
 
-            # Determine content type from extension
             ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
             content_type_map = {
                 "pdf": "application/pdf",
@@ -163,28 +160,28 @@ async def add_files_to_investigation(
             }
             content_type = content_type_map.get(ext, "application/octet-stream")
             pdf_status = PdfConversionStatus.NOT_REQUIRED if ext == "pdf" else PdfConversionStatus.PENDING
-
-            # Copy to investigation folder
-            new_blob_path = blob_svc.build_blob_path(investigation.record_id, file_id, filename)
-            _, version_id = await blob_svc.upload_blob(new_blob_path, data, content_type)
             checksum = BlobService.compute_checksum(data)
 
-            # Create document record
-            await metadata_svc.create_document(
+            document, version = await metadata_svc.create_document_with_version(
                 investigation_id=uuid.UUID(body.investigation_id),
-                file_id=file_id,
                 original_filename=filename,
-                content_type=content_type,
+                mime_type=content_type,
                 file_size_bytes=len(data),
-                blob_path=new_blob_path,
-                blob_version_id=version_id,
-                checksum_sha256=checksum,
+                blob_path_original="",
+                checksum=checksum,
                 user_id=app_user.entra_oid,
                 user_name=app_user.display_name,
                 pdf_conversion_status=pdf_status,
             )
 
-            results.append(AddToInvestigationResult(blob_path=blob_path, success=True, file_id=file_id))
+            new_blob_path = blob_svc.build_blob_path(
+                investigation.record_id, str(document.id), version.version_number, filename
+            )
+            await blob_svc.upload_blob(new_blob_path, data, content_type)
+            version.blob_path_original = new_blob_path
+            await session.flush()
+
+            results.append(AddToInvestigationResult(blob_path=blob_path, success=True, document_id=str(document.id)))
         except Exception as e:
             logger.error("add_to_investigation_failed", blob_path=blob_path, error=str(e))
             results.append(AddToInvestigationResult(blob_path=blob_path, success=False, error=str(e)))

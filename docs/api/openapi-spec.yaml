@@ -12,6 +12,27 @@ info:
     sampling plans, laboratory data (CSV), National Residue Program reports,
     microbiology baselines, MPI establishment directories, and inspection task records.
 
+    ## Document Versioning
+    Documents support versioning for compliance and audit requirements. Each document
+    has a stable logical identity (document ID) and one or more versions (physical binaries).
+    End users see only the latest version; administrators can access historical versions
+    and rollback if needed.
+
+    ## PDF Conversion
+    The system uses Aspose.Words as the default PDF engine for document conversions.
+    PDF conversion is tracked asynchronously; check `pdf_conversion_status` for
+    progress (pending, processing, completed, failed, not_required).
+
+    ## Merge Ordering
+    PDF merges follow type-based ordering (FSIS-specific rules):
+    1. Investigation Reports (10)
+    2. Inspection Forms (20)
+    3. Laboratory Results (30)
+    4. Legal Documents (40)
+    5. Correspondence (50)
+    6. Supporting Evidence (60)
+    7. Other (99)
+
     ## Authentication
     All endpoints (except health checks) require a valid Microsoft Entra ID JWT token
     obtained via MSAL.js redirect flow. Include the token as `Authorization: Bearer <token>`.
@@ -19,7 +40,7 @@ info:
     ## Demo Data
     Use the seed-data script to populate the system with real FSIS documents:
     `./scripts/setup/seed-data.sh`
-  version: 0.1.0
+  version: 1.0.0
   contact:
     name: FSIS AssuranceNet Team
     email: FSISDataDriven@usda.gov
@@ -27,7 +48,7 @@ info:
     name: MIT
 
 servers:
-  - url: https://app-assurancenet-api-dev.azurewebsites.net
+  - url: https://ca-api-assurancenet-dev.reddune-5bb251d3.eastus2.azurecontainerapps.io
     description: Development
   - url: https://app-assurancenet-api-staging.azurewebsites.net
     description: Staging
@@ -46,6 +67,10 @@ components:
       description: Microsoft Entra ID JWT access token
 
   schemas:
+    # ========================================================================
+    # Investigation Schema
+    # ========================================================================
+
     Investigation:
       type: object
       properties:
@@ -75,36 +100,289 @@ components:
         document_count:
           type: integer
 
-    Document:
+    # ========================================================================
+    # Document Version Schema (Physical Binary Metadata)
+    # ========================================================================
+
+    DocumentVersion:
       type: object
+      description: Immutable physical binary — one version of a logical document.
       properties:
         id:
           type: string
           format: uuid
-        file_id:
+          description: Version ID
+        document_id:
           type: string
+          format: uuid
+          description: Parent document ID
+        version_number:
+          type: integer
+          description: Sequential version number (1, 2, 3, ...)
         original_filename:
           type: string
-        content_type:
+          description: Uploaded filename
+        mime_type:
+          type: string
+          nullable: true
+          example: "application/pdf"
+        file_size_bytes:
+          type: integer
+          format: int64
+          description: Original file size
+        checksum:
+          type: string
+          description: SHA-256 checksum of original file
+        is_latest:
+          type: boolean
+          description: Whether this is the current/latest version
+        pdf_conversion_status:
+          type: string
+          enum: [pending, processing, completed, failed, not_required]
+          description: PDF conversion state
+        pdf_conversion_error:
+          type: string
+          nullable: true
+          description: Error details if conversion failed
+        pdf_converted_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when PDF conversion completed
+        scan_status:
+          type: string
+          enum: [pending, scanning, clean, infected, error]
+          description: Malware scan state
+        scanned_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when scan completed
+        uploaded_by:
+          type: string
+          description: User ID who uploaded this version
+        uploaded_by_name:
+          type: string
+          nullable: true
+          description: Display name of uploader
+        uploaded_at:
+          type: string
+          format: date-time
+          description: Timestamp when uploaded
+
+    # ========================================================================
+    # Document Schema (Logical Identity + Latest Version)
+    # ========================================================================
+
+    Document:
+      type: object
+      description: |
+        Logical document with stable identity and versioning support.
+        End users see the latest version only; inlined latest version fields
+        for convenience.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Document ID (stable across versions)
+        investigation_id:
+          type: string
+          format: uuid
+          description: Parent investigation ID
+        document_type:
+          type: string
+          enum:
+            - investigation_report
+            - inspection_form
+            - laboratory_result
+            - correspondence
+            - supporting_evidence
+            - legal_document
+            - other
+          description: FSIS document classification
+        title:
+          type: string
+          nullable: true
+          description: Optional document title (e.g., "Lab Report for Sample XYZ")
+        created_by:
+          type: string
+          description: User ID who created the document
+        created_by_name:
+          type: string
+          nullable: true
+          description: Display name of creator
+        created_at:
+          type: string
+          format: date-time
+          description: Document creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last updated timestamp
+        # Latest version fields (inlined)
+        current_version_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: ID of the current (latest) version
+        version_number:
+          type: integer
+          nullable: true
+          description: Current version number
+        original_filename:
+          type: string
+          nullable: true
+          description: Filename of current version
+        mime_type:
+          type: string
+          nullable: true
+          example: "application/pdf"
+        file_size_bytes:
+          type: integer
+          format: int64
+          nullable: true
+          description: File size of current version
+        checksum:
+          type: string
+          nullable: true
+          description: SHA-256 of current version
+        pdf_conversion_status:
+          type: string
+          nullable: true
+          enum: [pending, processing, completed, failed, not_required]
+        uploaded_by:
+          type: string
+          nullable: true
+          description: User ID who uploaded current version
+        uploaded_by_name:
+          type: string
+          nullable: true
+          description: Display name of uploader
+        uploaded_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Upload timestamp of current version
+
+    # ========================================================================
+    # Document Upload Response
+    # ========================================================================
+
+    DocumentUploadResponse:
+      type: object
+      description: Response after successfully uploading a document or new version.
+      properties:
+        document_id:
+          type: string
+          format: uuid
+          description: The document ID
+        version_id:
+          type: string
+          format: uuid
+          description: The new version ID
+        version_number:
+          type: integer
+          description: Version number (1 for new documents, increments for updates)
+        original_filename:
           type: string
         file_size_bytes:
           type: integer
           format: int64
-        blob_path:
+        checksum:
           type: string
-        pdf_path:
+          description: SHA-256 checksum
+        document_type:
           type: string
-          nullable: true
+          enum:
+            - investigation_report
+            - inspection_form
+            - laboratory_result
+            - correspondence
+            - supporting_evidence
+            - legal_document
+            - other
         pdf_conversion_status:
           type: string
           enum: [pending, processing, completed, failed, not_required]
-        checksum_sha256:
+        blob_path:
           type: string
-        uploaded_by_name:
+          description: Blob storage path of the uploaded file
+
+    # ========================================================================
+    # Rollback Response
+    # ========================================================================
+
+    RollbackResponse:
+      type: object
+      description: Response after rolling back a document to a previous version.
+      properties:
+        document_id:
           type: string
-        uploaded_at:
+          format: uuid
+        rolled_back_version:
+          type: integer
+          description: The version number that was rolled back (no longer current)
+        promoted_version:
+          type: integer
+          description: The version number that was promoted to current
+        new_current_version_id:
+          type: string
+          format: uuid
+          description: The version ID now marked as current
+
+    # ========================================================================
+    # Admin Document Detail (with all versions)
+    # ========================================================================
+
+    AdminDocumentDetail:
+      type: object
+      description: Full document detail with all versions — admin only.
+      properties:
+        id:
+          type: string
+          format: uuid
+        investigation_id:
+          type: string
+          format: uuid
+        document_type:
+          type: string
+          enum:
+            - investigation_report
+            - inspection_form
+            - laboratory_result
+            - correspondence
+            - supporting_evidence
+            - legal_document
+            - other
+        title:
+          type: string
+          nullable: true
+        created_by:
+          type: string
+        created_by_name:
+          type: string
+          nullable: true
+        created_at:
           type: string
           format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        current_version_id:
+          type: string
+          format: uuid
+          nullable: true
+        is_deleted:
+          type: boolean
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/DocumentVersion"
+          description: All versions in descending order
+
+    # ========================================================================
+    # Health & Pagination
+    # ========================================================================
 
     HealthResponse:
       type: object
@@ -139,6 +417,10 @@ components:
           type: string
 
 paths:
+  # ========================================================================
+  # Health Endpoints
+  # ========================================================================
+
   /api/v1/health:
     get:
       summary: Health check (liveness)
@@ -162,6 +444,10 @@ paths:
           description: All dependencies ready
         "503":
           description: One or more dependencies unavailable
+
+  # ========================================================================
+  # Investigation Endpoints
+  # ========================================================================
 
   /api/v1/investigations:
     get:
@@ -249,44 +535,81 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Document list
+          description: Document list (latest versions only)
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/PaginatedResponse"
 
-  /api/v1/documents/upload:
+  # ========================================================================
+  # Document Upload & Management Endpoints
+  # ========================================================================
+
+  /api/v1/documents/upload/{investigation_id}:
     post:
-      summary: Upload document
+      summary: Upload document (new or create version)
       tags: [Documents]
+      description: |
+        Upload a document to an investigation. If this is the first upload for
+        a document, creates a new Document (version 1). If the document already
+        exists, creates a new version (incremented version number).
+
+        Form fields:
+        - file: The document file (required)
+        - document_type: FSIS type (optional, defaults to 'other')
+        - title: Document title (optional)
+      parameters:
+        - name: investigation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
-              required: [file, investigation_id]
+              required: [file]
               properties:
                 file:
                   type: string
                   format: binary
-                investigation_id:
+                  description: Document file to upload
+                document_type:
                   type: string
-                  format: uuid
+                  enum:
+                    - investigation_report
+                    - inspection_form
+                    - laboratory_result
+                    - correspondence
+                    - supporting_evidence
+                    - legal_document
+                    - other
+                  default: other
+                title:
+                  type: string
+                  description: Optional document title
       responses:
         "201":
-          description: Document uploaded
+          description: Document uploaded successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Document"
+                $ref: "#/components/schemas/DocumentUploadResponse"
+        "400":
+          description: Invalid request (missing file, invalid type, etc.)
         "413":
-          description: File too large
+          description: File too large (exceeds max upload size)
+        "422":
+          description: Validation error
 
   /api/v1/documents/{document_id}:
     get:
-      summary: Get document metadata
+      summary: Get document metadata (latest version)
       tags: [Documents]
+      description: Returns the current (latest) version metadata inlined.
       parameters:
         - name: document_id
           in: path
@@ -301,9 +624,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Document"
+        "404":
+          description: Document not found
     delete:
-      summary: Soft-delete document
+      summary: Soft-delete document (all versions)
       tags: [Documents]
+      description: Marks the document and all its versions as deleted.
       parameters:
         - name: document_id
           in: path
@@ -313,12 +639,15 @@ paths:
             format: uuid
       responses:
         "204":
-          description: Document deleted
+          description: Document deleted successfully
+        "404":
+          description: Document not found
 
   /api/v1/documents/{document_id}/download:
     get:
-      summary: Download original file
+      summary: Download original file (latest version only)
       tags: [Documents]
+      description: Downloads the latest version of the original file.
       parameters:
         - name: document_id
           in: path
@@ -326,11 +655,6 @@ paths:
           schema:
             type: string
             format: uuid
-        - name: version
-          in: query
-          schema:
-            type: string
-          description: Specific blob version ID
       responses:
         "200":
           description: File download
@@ -339,11 +663,17 @@ paths:
               schema:
                 type: string
                 format: binary
+        "404":
+          description: Document not found or no file available
 
   /api/v1/documents/{document_id}/pdf:
     get:
-      summary: Download PDF version
+      summary: Download PDF version (latest)
       tags: [Documents]
+      description: |
+        Downloads the latest version as PDF. If the original file is already
+        a PDF, serves it directly. Otherwise, returns the converted PDF
+        (if conversion is complete).
       parameters:
         - name: document_id
           in: path
@@ -360,12 +690,112 @@ paths:
                 type: string
                 format: binary
         "404":
-          description: PDF not available
+          description: PDF not available (document not found, conversion pending, etc.)
 
   /api/v1/documents/{document_id}/versions:
-    get:
-      summary: List document versions
+    post:
+      summary: Upload new version of existing document
       tags: [Documents]
+      description: |
+        Creates a new version (incremented version number) of an existing document.
+        The new version becomes the current/latest version automatically.
+
+        Form fields:
+        - file: The new file (required)
+        - title: Optional updated title
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                title:
+                  type: string
+                  description: Optional updated title
+      responses:
+        "201":
+          description: New version created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentUploadResponse"
+        "404":
+          description: Document not found
+        "413":
+          description: File too large
+
+  # ========================================================================
+  # PDF Merge Endpoint
+  # ========================================================================
+
+  /api/v1/investigations/{investigation_id}/merge-pdf:
+    post:
+      summary: Merge multiple document PDFs
+      tags: [PDF Operations]
+      description: |
+        Merges the latest versions of multiple documents into a single PDF.
+        Documents are ordered by FSIS type (investigation_report → inspection_form
+        → laboratory_result → legal_document → correspondence → supporting_evidence
+        → other), then by creation timestamp within each type.
+
+        Request body uses document_ids (not file_ids).
+      parameters:
+        - name: investigation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [document_ids]
+              properties:
+                document_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  minItems: 2
+                  maxItems: 50
+                  description: Document IDs to merge (will use latest version of each)
+      responses:
+        "200":
+          description: Merged PDF download
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid request (empty list, invalid IDs, documents not found, etc.)
+        "422":
+          description: Merge failed (PDF conversion pending, missing files, etc.)
+
+  # ========================================================================
+  # Admin Document Endpoints
+  # ========================================================================
+
+  /api/v1/admin/documents/{document_id}:
+    get:
+      summary: Get document with all versions (Admin only)
+      tags: [Admin - Documents]
+      description: Returns complete document detail including all versions, deleted status, etc.
       parameters:
         - name: document_id
           in: path
@@ -375,40 +805,116 @@ paths:
             format: uuid
       responses:
         "200":
-          description: Version list
+          description: Full document detail with version history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminDocumentDetail"
+        "403":
+          description: Admin role required
+        "404":
+          description: Document not found
 
-  /api/v1/investigations/{record_id}/merge-pdf:
-    post:
-      summary: Merge multiple document PDFs
-      tags: [PDF Operations]
+  /api/v1/admin/documents/{document_id}/versions:
+    get:
+      summary: List all versions of a document (Admin only)
+      tags: [Admin - Documents]
+      description: Returns all versions including historical ones, sorted descending by version number.
       parameters:
-        - name: record_id
+        - name: document_id
           in: path
           required: true
           schema:
             type: string
+            format: uuid
+      responses:
+        "200":
+          description: List of all versions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DocumentVersion"
+        "403":
+          description: Admin role required
+        "404":
+          description: Document not found
+
+  /api/v1/admin/documents/{document_id}/versions/{version_id}/download:
+    get:
+      summary: Download specific version (Admin only)
+      tags: [Admin - Documents]
+      description: Downloads the original file for a specific historical version.
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: version_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: File download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "403":
+          description: Admin role required
+        "404":
+          description: Document or version not found
+
+  /api/v1/admin/documents/{document_id}/rollback:
+    post:
+      summary: Rollback document to a previous version (Admin only)
+      tags: [Admin - Documents]
+      description: |
+        Marks a previous version as current (is_latest=True) and demotes the current
+        version (is_latest=False). Enables recovery from accidental overwrite or corruption.
+      parameters:
+        - name: document_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [file_ids]
+              required: [version_id]
               properties:
-                file_ids:
-                  type: array
-                  items:
-                    type: string
-                  minItems: 2
-                  maxItems: 50
+                version_id:
+                  type: string
+                  format: uuid
+                  description: The version ID to promote as current
       responses:
         "200":
-          description: Merged PDF download
+          description: Rollback successful
           content:
-            application/pdf:
+            application/json:
               schema:
-                type: string
-                format: binary
+                $ref: "#/components/schemas/RollbackResponse"
+        "400":
+          description: Invalid request (version_id is already current, etc.)
+        "403":
+          description: Admin role required
+        "404":
+          description: Document or version not found
+
+  # ========================================================================
+  # Audit Endpoints
+  # ========================================================================
 
   /api/v1/audit/logs:
     post:

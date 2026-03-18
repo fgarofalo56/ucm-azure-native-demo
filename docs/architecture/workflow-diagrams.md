@@ -117,8 +117,8 @@ sequenceDiagram
     User->>FE: Select multiple documents, click "Merge PDFs"
     FE->>API: POST /api/v1/investigations/{recordId}/merge-pdf
     API->>API: Validate JWT + authorization
-    loop For each file_id
-        API->>SQL: GET pdf_path for file_id
+    loop For each document_id (sorted by document_type)
+        API->>SQL: Resolve latest version, GET blob_path_pdf for document_id
         API->>Blob: Download PDF
         Blob-->>API: PDF binary
     end

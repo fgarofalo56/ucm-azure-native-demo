@@ -270,13 +270,15 @@ Each document stored in AssuranceNet has detailed metadata that you can review:
 
 | Field | Description |
 |-------|-------------|
-| **File ID** | A unique system identifier for the document (UUID format). |
+| **Document ID** | A unique system identifier for the document (UUID format). |
+| **Document Type** | The classification of the document (e.g., inspection report, correspondence). |
+| **Title** | The display title of the document. |
+| **Version Number** | The current version number of the document. |
 | **Original Filename** | The name of the file as it was uploaded. |
-| **Content Type** | The MIME type of the file. |
+| **MIME Type** | The MIME type of the file. |
 | **File Size** | The exact size of the file in bytes. |
-| **SHA-256 Checksum** | A cryptographic hash of the file contents for integrity verification. |
-| **Blob Path** | The storage path in Azure Blob Storage (pattern: `{record_id}/{file_id}/blob/{filename}`). |
-| **Version ID** | The Azure Blob Storage version identifier for the current version. |
+| **Checksum** | A cryptographic hash of the file contents for integrity verification. |
+| **Blob Path** | The storage path in Azure Blob Storage (pattern: `{record_id}/{document_id}/original/v{N}/{filename}`). |
 | **Uploaded By** | The name and ID of the user who uploaded the file. |
 | **Upload Date** | When the file was uploaded. |
 | **PDF Conversion Status** | Whether PDF conversion has been completed. |

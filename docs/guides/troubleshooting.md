@@ -377,9 +377,10 @@ AppExceptions
 2. **Verify the document exists in the database:**
    ```sql
    -- Run against Azure SQL (via SSMS, Azure Data Studio, or az sql query)
-   SELECT id, file_id, original_filename, created_at, pdf_conversion_status
-   FROM documents
-   WHERE file_id = '<file_id_from_upload_response>'
+   SELECT dv.id, dv.original_filename, dv.version_number, dv.pdf_conversion_status
+   FROM document_versions dv
+   JOIN documents d ON d.id = dv.document_id
+   WHERE dv.id = '<version_id>'
    ```
 
 3. **Check the frontend cache invalidation.** After a successful upload, the frontend should invalidate the document list query. Verify the React Query `invalidateQueries` call is working correctly.
@@ -701,19 +702,19 @@ az monitor metrics list \
 - Error indicates too few files provided.
 
 **Causes:**
-- The `file_ids` array in the `PdfMergeRequest` body contains fewer than 2 entries.
+- The `document_ids` array in the `PdfMergeRequest` body contains fewer than 2 entries.
 - The frontend is not correctly collecting selected document IDs.
 
 **Solutions:**
 
 1. **Select at least 2 documents** with completed PDF conversion before attempting a merge.
 
-2. **Verify all selected documents have PDF available.** Documents with `pdf_conversion_status` of `"pending"` or `"failed"` cannot be included in a merge. The API will return `400` with detail: `"PDF not available for {file_id}. Status: {status}"`.
+2. **Verify all selected documents have PDF available.** Documents with `pdf_conversion_status` of `"pending"` or `"failed"` cannot be included in a merge. The API will return `400` with detail: `"PDF not available for {document_id}. Status: {status}"`.
 
 3. **Check the request payload** in the browser DevTools Network tab. The body should be:
    ```json
    {
-     "file_ids": ["file-id-1", "file-id-2", "..."]
+     "document_ids": ["doc-id-1", "doc-id-2", "..."]
    }
    ```
 
@@ -786,10 +787,12 @@ AppTraces
 
 3. **Verify source file integrity** by comparing checksums:
    ```sql
-   SELECT file_id, original_filename, checksum_sha256, pdf_conversion_status, pdf_path
-   FROM documents
-   WHERE investigation_id = '<investigation_id>'
-   AND pdf_conversion_status IN ('completed', 'not_required')
+   SELECT dv.original_filename, dv.checksum, dv.blob_path_pdf, dv.version_number, dv.pdf_conversion_status
+   FROM document_versions dv
+   JOIN documents d ON d.id = dv.document_id
+   WHERE d.investigation_id = '<investigation_id>'
+   AND dv.is_latest = 1
+   AND dv.pdf_conversion_status IN ('completed', 'not_required')
    ```
 
 ---
@@ -922,7 +925,7 @@ alembic history --verbose
 - The readiness endpoint is slow to respond.
 
 **Causes:**
-- Missing indexes on frequently queried columns (e.g., `investigation_id`, `file_id`, `record_id`).
+- Missing indexes on frequently queried columns (e.g., `investigation_id`, `document_id`, `record_id`).
 - DTU (Database Transaction Unit) exhaustion on the Azure SQL tier.
 - Large result sets being returned without pagination.
 - Lock contention from concurrent writes (bulk uploads).
@@ -1007,7 +1010,7 @@ az storage blob show \
 az storage blob list \
   --account-name <STORAGE_ACCOUNT_NAME> \
   --container-name assurancenet-documents \
-  --prefix "<record_id>/<file_id>/" \
+  --prefix "<record_id>/<document_id>/" \
   --auth-mode login \
   --output table
 
@@ -1015,7 +1018,7 @@ az storage blob list \
 az storage blob list \
   --account-name <STORAGE_ACCOUNT_NAME> \
   --container-name assurancenet-documents \
-  --prefix "<record_id>/<file_id>/" \
+  --prefix "<record_id>/<document_id>/" \
   --include d \
   --auth-mode login \
   --output table
@@ -1023,14 +1026,16 @@ az storage blob list \
 
 ```sql
 -- Check the stored blob path in the database
-SELECT file_id, blob_path, pdf_path, blob_version_id, original_filename
-FROM documents
-WHERE id = '<document_id>'
+SELECT dv.original_filename, dv.blob_path_original, dv.blob_path_pdf, dv.checksum, dv.version_number
+FROM document_versions dv
+JOIN documents d ON d.id = dv.document_id
+WHERE d.id = '<document_id>'
+AND dv.is_latest = 1
 ```
 
 **Solutions:**
 
-1. **Verify the blob path** stored in the database matches the actual blob path format: `INVESTIGATION-{RecordId}/{FileId}/blob/{filename}`.
+1. **Verify the blob path** stored in the database matches the actual blob path format: `{RecordId}/{DocumentId}/original/v{N}/{filename}`.
 
 2. **Check soft-delete.** If soft-delete is enabled on the storage account, the blob may be recoverable:
    ```bash
@@ -1046,7 +1051,7 @@ WHERE id = '<document_id>'
    az storage blob list \
      --account-name <STORAGE_ACCOUNT_NAME> \
      --container-name assurancenet-documents \
-     --prefix "<record_id>/<file_id>/" \
+     --prefix "<record_id>/<document_id>/" \
      --include v \
      --auth-mode login \
      --output table

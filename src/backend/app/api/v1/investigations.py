@@ -12,7 +12,6 @@ from app.db.session import get_db_session
 from app.middleware.auth import require_permission
 from app.models.enums import InvestigationStatus
 from app.models.schemas import (
-    DocumentResponse,
     InvestigationCreate,
     InvestigationResponse,
     InvestigationUpdate,
@@ -130,10 +129,11 @@ async def list_investigation_documents(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
 ) -> PaginatedResponse:
-    """List all documents for a specific investigation."""
+    """List all documents for an investigation — latest version only."""
+    from app.api.v1.documents import _build_document_response
+
     metadata_svc = MetadataService(session)
 
-    # Verify investigation exists
     investigation = await metadata_svc.get_investigation(investigation_id)
     if not investigation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investigation not found")
@@ -145,6 +145,6 @@ async def list_investigation_documents(
     )
 
     return PaginatedResponse(
-        data=[DocumentResponse.model_validate(doc) for doc in documents],
+        data=[_build_document_response(doc) for doc in documents],
         meta={"page": page, "page_size": page_size, "total": total},
     )

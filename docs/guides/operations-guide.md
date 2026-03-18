@@ -551,7 +551,7 @@ az eventhubs namespace update \
 az storage blob undelete \
   --account-name stassurancenet{env} \
   --container-name assurancenet-documents \
-  --name "{record_id}/{file_id}/blob/{filename}" \
+  --name "{record_id}/{document_id}/original/v{N}/{filename}" \
   --auth-mode login
 ```
 

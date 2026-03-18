@@ -1,59 +1,32 @@
-"""Routes files to the correct PDF conversion method."""
+"""Routes files to the correct PDF conversion engine.
+
+Uses the pluggable PdfConverter abstraction from pdf_engine.py.
+Default engine: Aspose (production). Fallback: Gotenberg (demo).
+Engine selection is configuration-driven via PDF_ENGINE env var.
+"""
 
 import logging
 
-from services.gotenberg_client import GotenbergClient
-from services.image_converter import ImageConverter
-from services.text_converter import TextConverter
+from services.pdf_engine import PdfConverter, get_pdf_engine
 
 logger = logging.getLogger("conversion_service")
 
-# Content type routing
-IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/tiff", "image/bmp"}
-TEXT_TYPES = {"text/plain", "text/rtf", "application/rtf"}
-OFFICE_TYPES = {
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/vnd.visio",
-    "application/vnd.ms-visio.drawing",
-    "application/x-mspublisher",
-}
-
 
 class ConversionService:
-    """Routes file conversion to the appropriate handler."""
+    """Routes file conversion to the configured PDF engine."""
 
-    def __init__(self, gotenberg_url: str) -> None:
-        self._gotenberg = GotenbergClient(gotenberg_url)
-        self._image_converter = ImageConverter()
-        self._text_converter = TextConverter()
+    def __init__(self, engine: PdfConverter | None = None) -> None:
+        self._engine = engine or get_pdf_engine()
 
     async def convert_to_pdf(
         self, file_data: bytes, filename: str, content_type: str
     ) -> bytes:
-        """Convert a file to PDF using the appropriate method."""
-        if content_type == "application/pdf":
-            logger.info("File is already PDF, passthrough: %s", filename)
-            return file_data
+        """Convert a file to PDF using the configured engine."""
+        if not self._engine.supports(content_type):
+            logger.warning(
+                "Content type not explicitly supported, attempting conversion: %s (%s)",
+                filename,
+                content_type,
+            )
 
-        if content_type in IMAGE_TYPES:
-            logger.info("Using image converter for: %s (%s)", filename, content_type)
-            return self._image_converter.convert(file_data, content_type)
-
-        if content_type in TEXT_TYPES:
-            logger.info("Using text converter for: %s (%s)", filename, content_type)
-            return self._text_converter.convert(file_data, filename)
-
-        if content_type in OFFICE_TYPES:
-            logger.info("Using Gotenberg for: %s (%s)", filename, content_type)
-            return await self._gotenberg.convert(file_data, filename)
-
-        # Unknown type - attempt Gotenberg as fallback
-        logger.warning(
-            "Unknown content type, attempting Gotenberg: %s (%s)", filename, content_type
-        )
-        return await self._gotenberg.convert(file_data, filename)
+        return await self._engine.convert(file_data, filename, content_type)
