@@ -6,7 +6,7 @@
 
 Comprehensive deployment guide for the AssuranceNet Document Management System, an Azure-native platform replacing Oracle Universal Content Manager (UCM). This guide covers all deployment methods from manual Portal-based provisioning through fully automated CI/CD pipelines.
 
-**Architecture overview**: React SPA on Static Web Apps, FastAPI backend on App Service, Azure Functions for event-driven PDF conversion via Gotenberg on Container Apps, with Azure SQL for metadata and Blob Storage for documents. All infrastructure is defined in Bicep.
+**Architecture overview**: React SPA on Static Web Apps, FastAPI backend on Container Apps, with Azure SQL for metadata and Blob Storage for documents. PDF conversion runs in-process in the FastAPI backend using Pillow and fpdf2. All infrastructure is defined in Bicep.
 
 ---
 
@@ -104,10 +104,13 @@ All resources follow a consistent naming pattern using `{projectName}` = `assura
 | App Service Plan | `asp-assurancenet-{env}` | `asp-assurancenet-dev` |
 | App Service (API) | `app-assurancenet-api-{env}` | `app-assurancenet-api-dev` |
 | Static Web App | `swa-assurancenet-{env}` | `swa-assurancenet-dev` |
-| Function App | `func-pdf-converter-{env}` | `func-pdf-converter-dev` |
-| Function Plan | `asp-func-{env}` | `asp-func-dev` |
-| Container Apps Env | `cae-assurancenet-{env}` | `cae-assurancenet-dev` |
-| Gotenberg Container | `ca-gotenberg-{env}` | `ca-gotenberg-dev` |
+| Function App (optional) | `func-pdf-converter-{env}` | `func-pdf-converter-dev` |
+| Function Plan (optional) | `asp-func-{env}` | `asp-func-dev` |
+| Container Apps Env (API) | `cae-api-assurancenet-{env}` | `cae-api-assurancenet-dev` |
+| Container App (API) | `ca-api-assurancenet-{env}` | `ca-api-assurancenet-dev` |
+| Gotenberg Container (optional) | `ca-gotenberg-{env}` | `ca-gotenberg-dev` |
+
+> **Note:** In the current architecture, the app resource group (`rg-assurancenet-app-dev`) contains exactly 4 resources: `swa-assurancenet-dev`, `acrassurancenetdev`, `ca-api-assurancenet-dev`, and `cae-api-assurancenet-dev`. The Function App, Gotenberg Container, and the separate `cae-assurancenet-dev` Container Apps Environment are not deployed by default.
 | Front Door | `fd-assurancenet-{env}` | `fd-assurancenet-dev` |
 | WAF Policy | `wafassurancenet{env}` | `wafassurancenetdev` |
 | Log Analytics | `law-assurancenet-{env}` | `law-assurancenet-dev` |
@@ -462,6 +465,8 @@ Create NSGs **before** creating the VNet (or before associating subnets):
 
 #### Function App
 
+> **Note:** The Azure Functions PDF converter is optional. In the current architecture, PDF conversion runs in-process in the FastAPI backend container. Deploy Functions only if you need Event Grid-triggered async conversion for high-volume scenarios.
+
 1. Go to **Function App** > **Create**.
 2. Resource group: `rg-assurancenet-app-dev`
 3. Name: `func-pdf-converter-dev`
@@ -474,6 +479,8 @@ Create NSGs **before** creating the VNet (or before associating subnets):
 10. Application settings (see [Section 12](#12-environment-configuration))
 
 ### 🐳 3.11 Container Apps (Gotenberg)
+
+> **Note:** Gotenberg is optional. PDF conversion runs in-process in the backend API using Pillow (images) and fpdf2 (text/CSV). Gotenberg is only needed if you configure the opensource engine with Office document support via the Admin Settings UI. The separate `cae-assurancenet-dev` Container Apps Environment has been removed; only `cae-api-assurancenet-dev` (hosting the API) is deployed.
 
 #### Container Apps Environment
 
@@ -506,6 +513,8 @@ Create NSGs **before** creating the VNet (or before associating subnets):
 5. Resource group: `rg-assurancenet-data-dev`
 
 #### Event Subscription
+
+> **Note:** This Event Grid subscription is only needed if you deployed the optional Azure Functions PDF converter. In the current architecture, PDF conversion runs in-process in the FastAPI backend and does not require Event Grid.
 
 1. On the system topic, click **+ Event Subscription**.
 2. Name: `evgs-pdf-convert`
@@ -1136,6 +1145,8 @@ az staticwebapp create \
 
 ### 4.11 Function App
 
+> **Note:** The Azure Functions PDF converter is optional. In the current architecture, PDF conversion runs in-process in the FastAPI backend container. Deploy Functions only if you need Event Grid-triggered async conversion for high-volume scenarios.
+
 ```bash
 # Function-specific storage
 FUNC_STORAGE="stfunc${PROJECT//[-]/}${ENV}"
@@ -1204,6 +1215,8 @@ az functionapp vnet-integration add \
 
 ### 4.12 Container Apps (Gotenberg)
 
+> **Note:** Gotenberg is optional. PDF conversion runs in-process in the backend API using Pillow (images) and fpdf2 (text/CSV). Gotenberg is only needed if you configure the opensource engine with Office document support via the Admin Settings UI. The separate `cae-assurancenet-dev` Container Apps Environment shown below has been removed from the default deployment; only `cae-api-assurancenet-dev` (hosting the API) is deployed.
+
 ```bash
 # Container Apps Environment
 LAW_CUSTOMER_ID=$(az monitor log-analytics workspace show \
@@ -1248,6 +1261,8 @@ az containerapp create \
 
 ### 4.13 Event Grid
 
+> **Note:** The Event Grid subscription targeting the Function App is only needed if you deployed the optional Azure Functions PDF converter. In the current architecture, PDF conversion runs in-process in the FastAPI backend and does not require Event Grid.
+
 ```bash
 # System Topic
 az eventgrid system-topic create \
@@ -1258,7 +1273,7 @@ az eventgrid system-topic create \
   --source $STORAGE_ID \
   --tags $TAGS
 
-# Event Subscription
+# Event Subscription (only if using Azure Functions PDF converter)
 FUNC_APP_ID=$(az functionapp show --name "func-pdf-converter-${ENV}" --resource-group $RG_APP --query id -o tsv)
 
 az eventgrid system-topic event-subscription create \
@@ -1868,9 +1883,9 @@ The recommended deployment method uses the project's Bicep templates in the `inf
     ├── 📄 sql-database.bicep        # Azure SQL Server + Database
     ├── 📄 app-service.bicep         # App Service Plan + Web App
     ├── 📄 static-web-app.bicep      # Static Web App
-    ├── 📄 functions.bicep           # Function App for PDF conversion
-    ├── 📄 container-apps.bicep      # Gotenberg on Container Apps
-    ├── 📄 event-grid.bicep          # Event Grid system topic + subscription
+    ├── 📄 functions.bicep           # Function App for PDF conversion (optional)
+    ├── 📄 container-apps.bicep      # Container Apps (API + optional Gotenberg)
+    ├── 📄 event-grid.bicep          # Event Grid system topic + subscription (optional)
     ├── 📄 front-door.bicep          # Front Door + WAF
     ├── 📄 event-hub.bicep           # Event Hub for Splunk
     ├── 📄 dashboard.bicep           # Operational dashboard
@@ -2316,6 +2331,8 @@ After adding a custom domain, update the SPA app registration redirect URI in En
 
 ## ⚡ 10. Functions Deployment Details
 
+> **Note:** The Azure Functions PDF converter is optional. In the current architecture, PDF conversion runs in-process in the FastAPI backend container. Deploy Functions only if you need Event Grid-triggered async conversion for high-volume scenarios.
+
 ### 10.1 Build and Test Functions
 
 ```bash
@@ -2382,7 +2399,9 @@ az monitor app-insights query \
 
 ### 10.5 Gotenberg Container App
 
-Gotenberg runs as an internal-only Container App accessible only from the Functions subnet:
+> **Note:** Gotenberg is optional. PDF conversion runs in-process in the backend API using Pillow (images) and fpdf2 (text/CSV). Gotenberg is only needed if you configure the opensource engine with Office document support via the Admin Settings UI.
+
+Gotenberg runs as an internal-only Container App accessible only from the Functions subnet (only if deployed):
 
 ```bash
 # Verify Gotenberg is running
@@ -2750,7 +2769,9 @@ az sql db copy \
   --dest-resource-group rg-assurancenet-data-prod
 ```
 
-### 14.6 Container App Rollback (Gotenberg)
+### 14.6 Container App Rollback (Gotenberg -- optional)
+
+> **Note:** Gotenberg is optional. PDF conversion runs in-process in the backend API using Pillow (images) and fpdf2 (text/CSV). Gotenberg is only needed if you configure the opensource engine with Office document support via the Admin Settings UI. These rollback commands only apply if Gotenberg is deployed.
 
 ```bash
 # Roll back to a previous revision
@@ -2809,9 +2830,9 @@ When deploying from scratch, resources must be created in this order (matching `
 7. SQL Database (depends on: Networking, Monitoring)
 8. App Service (depends on: Networking, Managed Identity, Monitoring, Storage, SQL, Key Vault)
 9. Static Web App
-10. Function App (depends on: Networking, Managed Identity, Monitoring, Storage)
-11. Container Apps - Gotenberg (depends on: Networking, Monitoring)
-12. Event Grid (depends on: Storage, Function App)
+10. Function App -- optional (depends on: Networking, Managed Identity, Monitoring, Storage)
+11. Container Apps - Gotenberg -- optional (depends on: Networking, Monitoring)
+12. Event Grid -- optional (depends on: Storage, Function App)
 13. Front Door + WAF (depends on: App Service, Static Web App, Monitoring)
 14. Event Hub (depends on: Networking, Monitoring)
 15. Dashboard (depends on: Monitoring)

@@ -45,17 +45,15 @@ graph TB
     end
 
     subgraph RG_APP["rg-assurancenet-app-{env}"]
-        ASP["App Service Plan<br/>Linux, P1v3 prod / B1 dev"]
-        APP["App Service<br/>Python 3.11, FastAPI"]
-        APP_SLOT["Staging Slot"]
+        CA_API["Container App: API<br/>Python 3.11, FastAPI<br/>PDF conversion in-process"]
         SWA2["Static Web App<br/>React 18+ TypeScript"]
-        FUNC["Function App<br/>Python 3.11, Event Grid Trigger"]
-        CA_GOT["Container App: Gotenberg<br/>gotenberg/gotenberg:8<br/>Scale: 0-5"]
+        ACR["Container Registry<br/>ACR, Basic SKU"]
     end
 
     subgraph RG_DATA["rg-assurancenet-data-{env}"]
         SA["Storage Account<br/>StorageV2, Versioning Enabled"]
         CONT["Container: assurancenet-documents"]
+        STAGING["Container: assurancenet-staging<br/>(malware scanning)"]
         SQLSRV["SQL Server<br/>Azure AD Auth Only, TLS 1.2"]
         SQLDB["SQL Database<br/>Gen5 4vCores prod / Serverless dev"]
     end
@@ -76,26 +74,21 @@ graph TB
     end
 
     FD --> SWA2
-    FD --> APP
-    APP --> APP_SLOT
-    ASP --> APP
-    APP -.->|VNet| SNET_BE
-    FUNC -.->|VNet| SNET_FN
-    CA_GOT -.->|VNet| SNET_CA
+    FD --> CA_API
+    CA_API -.->|VNet| SNET_CA
     SA --> CONT
+    SA --> STAGING
     SQLSRV --> SQLDB
-    APP -->|Read/Write| SA
-    APP -->|Metadata| SQLDB
-    APP -->|Secrets| KV2
-    FUNC -->|Convert| CA_GOT
-    FUNC -->|Store PDF| SA
-    FUNC -->|Update Status| SQLDB
-    MI_APP -.->|Assigned to| APP
-    MI_FUNC -.->|Assigned to| FUNC
-    APP -->|Telemetry| AI_BE
-    FUNC -->|Telemetry| AI_FN
+    CA_API -->|Read/Write| SA
+    CA_API -->|Staging Upload| STAGING
+    STAGING -->|Promote Clean| CONT
+    CA_API -->|Metadata + Settings| SQLDB
+    CA_API -->|Secrets| KV2
+    CA_API -->|PDF Convert In-Process| CA_API
+    MI_APP -.->|Assigned to| CA_API
+    CA_API -->|Telemetry| AI_BE
     SWA2 -->|Telemetry| AI_FE
-    AI_BE & AI_FN & AI_FE -->|Ingest| LAW
+    AI_BE & AI_FE -->|Ingest| LAW
     LAW -->|Export| EVHNS
 ```
 
@@ -154,7 +147,7 @@ graph TB
 | SQL Database | Serverless | Gen5 2vCores | Gen5 4vCores |
 | Storage Replication | LRS | GRS | GRS |
 | Front Door | Standard | Premium | Premium |
-| Gotenberg Replicas | 0-2 | 0-3 | 0-5 |
+| PDF Engine | OpenSource (in-process) | OpenSource or Aspose | Aspose (licensed) |
 | Log Analytics Retention | 30d | 90d | 90d + 3yr archive |
 
 > [!NOTE]

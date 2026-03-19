@@ -191,9 +191,9 @@ The PDF conversion pipeline transforms Office documents, images, and text files 
 
   | File Type | Converter |
   |-----------|-----------|
-  | Office documents (Word, Excel, PowerPoint) | Gotenberg (Container Apps) -- wraps LibreOffice |
-  | Images (JPEG, PNG, TIFF, BMP) | Pillow -- PIL-based conversion |
-  | Plain text / RTF | fpdf2 |
+  | Office documents (Word, Excel, PowerPoint) | Aspose SDK (licensed) or Gotenberg HTTP API (optional opensource fallback) |
+  | Images (JPEG, PNG, TIFF, BMP) | Pillow -- PIL-based in-process conversion |
+  | Plain text / CSV / RTF | fpdf2 -- in-process text rendering |
 
 ### ⚙️ Reliability
 
@@ -341,12 +341,12 @@ Federal cloud budgets are finite. Use the right SKU for each environment and avo
 | Azure SQL | Serverless (auto-pause) | Standard S1 | Standard S2+ |
 | App Service Plan | B1 (Basic) | P1v3 | P1v3 |
 | Storage Account | LRS (locally redundant) | GRS (geo-redundant) | GRS (geo-redundant) |
-| Container Apps (Gotenberg) | Scale to 0 | Scale to 0, max 2 | Scale to 0, max 5 |
+| PDF Engine | OpenSource (in-process) | OpenSource or Aspose | Aspose (licensed) |
 
 ### ⚡ Compute Optimization
 
 - **Serverless SQL for dev.** Configure auto-pause with a 1-hour delay. Development databases sit idle most of the time; serverless billing stops during idle periods.
-- **Container Apps scale to zero.** Gotenberg (the PDF conversion engine) should scale to zero replicas when no conversions are queued. It spins up on demand when Event Grid triggers arrive. This eliminates idle compute costs for a bursty workload.
+- **In-process PDF conversion.** PDF conversion runs inside the FastAPI backend container — no separate compute needed. This eliminates idle costs from dedicated conversion services. The engine (opensource or Aspose) is configurable via the Admin Settings UI.
 
 ### 📊 Storage and Logging
 

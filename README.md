@@ -43,30 +43,27 @@ flowchart LR
     end
 
     subgraph Azure
-        API["FastAPI\n(Container Apps)"]
-        FUNC["Azure Functions\n(PDF Pipeline)"]
+        API["FastAPI\n(Container Apps)\nPDF in-process"]
         BLOB["Blob Storage\n(Versioned Docs)"]
         STAGING["Staging\n(Malware Scan)"]
-        SQL["Azure SQL\n(Document + Version\n+ Audit + RBAC)"]
+        SQL["Azure SQL\n(Document + Version\n+ Settings + RBAC)"]
         KV["Key Vault"]
         ENTRA["Entra ID\n(MSAL Auth)"]
         MI["Managed Identity"]
     end
 
     FE -->|HTTPS| API
-    API --> BLOB
+    API -->|upload + PDF convert| BLOB
     API --> STAGING
     STAGING -->|scan clean| BLOB
     API --> SQL
     API --> KV
-    FUNC -->|PDF convert| BLOB
     API -.->|Token Auth| MI
     FE -.->|Auth| ENTRA
     API -.->|Validate JWT| ENTRA
 
     style FE fill:#61dafb,color:#000
     style API fill:#009688,color:#fff
-    style FUNC fill:#ff9800,color:#000
     style BLOB fill:#0078d4,color:#fff
     style SQL fill:#0078d4,color:#fff
 ```
@@ -75,7 +72,7 @@ flowchart LR
 |-----------|-----------|----------------|----------|
 | **Frontend** | React 18 + TypeScript + Vite | Static Web App (`swa-assurancenet-dev`) | `src/frontend/` |
 | **Backend API** | Python 3.11+ FastAPI | Container App (`ca-api-assurancenet-dev`) | `src/backend/` |
-| **PDF Pipeline** | Aspose (default) / Gotenberg (fallback) | Azure Functions | `src/functions/` |
+| **PDF Pipeline** | OpenSource (Pillow+fpdf2) or Aspose (licensed) | In-process in backend (admin-configurable) | `src/backend/app/services/` |
 | **Storage** | Azure Blob Storage (versioned paths) | `stassurancenetdev` + staging container | Backend services |
 | **Database** | Azure SQL (Document + DocumentVersion + RBAC) | `sql-assurancenet-dev` / `sqldb-assurancenet-dev` | `src/backend/app/db/` |
 | **Auth** | Microsoft Entra ID (MSAL) | App Registrations (API + SPA) | Both frontend and backend |
@@ -140,7 +137,7 @@ ucm-azure-native-demo/
 ├── 📁 src/
 │   ├── 📁 backend/            # FastAPI Python API
 │   ├── 📁 frontend/           # React TypeScript SPA
-│   └── 📁 functions/          # Azure Functions (PDF conversion)
+│   └── 📁 functions/          # Azure Functions (optional async PDF — not deployed in default arch)
 ├── 📁 docs/
 │   ├── 📁 architecture/       # Architecture documentation (7 docs)
 │   ├── 📁 adr/                # Architecture Decision Records (6 ADRs)
@@ -345,4 +342,4 @@ MIT
 
 ---
 
-*Last updated: 2026-03-18*
+*Last updated: 2026-03-19*

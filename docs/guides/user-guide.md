@@ -22,6 +22,7 @@
 8. [FSIS-Specific Workflows](#8-fsis-specific-workflows)
 9. [Tips and Best Practices](#9-tips-and-best-practices)
 10. [Troubleshooting](#10-troubleshooting)
+11. [Administration (Admin Only)](#11-administration-admin-only)
 
 ---
 
@@ -701,6 +702,41 @@ The Audit Log page requires the **Admin** role. If you see a message indicating 
 - **Clear browser cache.** If the application behaves unexpectedly, clearing your browser cache and cookies for the AssuranceNet domain often resolves the issue.
 - **Try a different browser.** If an issue persists in one browser, try another supported browser to determine if the problem is browser-specific.
 - **Contact your administrator.** For persistent issues, provide your administrator with the following details: the action you were trying to perform, the investigation record ID (if applicable), the document filename (if applicable), the approximate time the issue occurred, and any error messages displayed.
+
+---
+
+## 11. Administration (Admin Only)
+
+### System Settings
+
+Administrators can configure system-wide settings from the **Administration** page. The System Settings panel includes:
+
+| Setting | Description |
+|---------|-------------|
+| **PDF Engine** | Choose between **Open Source** (Pillow + fpdf2 for images/text, optional Gotenberg for Office) or **Aspose** (licensed, production-grade Office conversion) |
+| **Aspose License Keys** | Enter license keys for Aspose.Words, Aspose.Cells, and Aspose.Slides (required for licensed mode; evaluation mode available without keys) |
+| **Gotenberg URL** | Optional URL for a Gotenberg service providing Office document conversion (only used with the Open Source engine) |
+| **Malware Scanning** | Toggle two-phase upload scanning. When enabled, uploaded files are staged and scanned before being promoted to production storage |
+
+Settings take effect immediately — no restart or redeployment is required.
+
+### Document Types
+
+Each document is assigned a type that determines its position in merged PDF output:
+
+| Type | Merge Order | Description |
+|------|-------------|-------------|
+| Investigation Report | 1st | Investigation reports and summaries |
+| Inspection Form | 2nd | Inspection and sampling forms |
+| Laboratory Result | 3rd | Lab test results and data |
+| Legal Document | 4th | Legal and regulatory documents |
+| Correspondence | 5th | Letters, emails, communications |
+| Supporting Evidence | 6th | Supporting documentation |
+| Other | Last | Uncategorized documents |
+
+### Version Rollback
+
+Administrators can roll back a document to its previous version from the **Admin** > **Documents** section. This demotes the current version and promotes the prior version. No binary data is modified — only metadata pointers change. All rollback actions are recorded in the audit log.
 
 ---
 

@@ -12,6 +12,8 @@ This guide covers the day-to-day operational procedures for the AssuranceNet Doc
 
 1. [System Architecture Overview](#1-system-architecture-overview)
 2. [Health Monitoring](#2-health-monitoring)
+   - [Configuring System Settings](#configuring-system-settings)
+   - [Version Rollback](#version-rollback)
 3. [Monitoring Dashboards](#3-monitoring-dashboards)
 4. [Common KQL Queries](#4-common-kql-queries)
 5. [Alert Response Procedures](#5-alert-response-procedures)
@@ -61,7 +63,7 @@ flowchart LR
     D --> F[Blob Storage]
     F -->|BlobCreated| G[Event Grid]
     G --> H[Azure Functions]
-    H --> I[Gotenberg]
+    H --> I[PDF Engine\nin-process]
     I --> F
     D --> J[App Insights]
     J --> K[Log Analytics]
@@ -73,7 +75,7 @@ flowchart LR
 2. Frontend calls the FastAPI backend through Azure Front Door.
 3. Backend validates JWT, processes requests, and interacts with Azure SQL (metadata) and Blob Storage (files).
 4. Document uploads to Blob Storage trigger an Event Grid event.
-5. Azure Functions receive the event and convert the document to PDF using Gotenberg (Container Apps) or built-in converters.
+5. Azure Functions receive the event and convert the document to PDF in-process using the configured engine (opensource Pillow+fpdf2, or Aspose). Gotenberg may optionally be used as an Office-format fallback when the opensource engine is selected.
 6. Converted PDFs are stored back in Blob Storage alongside the originals.
 7. All operations are logged to Application Insights and the audit log table (NIST 800-53 compliant).
 8. Log Analytics data is exported to Event Hub for Splunk SIEM integration.
@@ -151,7 +153,10 @@ Configure App Service health checks in the Azure Portal or via Bicep:
 | Interval | 30 seconds |
 | Unhealthy threshold | 3 consecutive failures |
 
-### ⚡ Gotenberg Health
+### ⚡ Gotenberg Health (Optional)
+
+> [!NOTE]
+> Gotenberg is **optional**. It is only required if the `pdf_engine` system setting is `opensource` and you need Office-format (docx/xlsx/pptx) conversion fallback via Gotenberg. If using the Aspose engine, or if you do not need Office-format conversion, you can skip Gotenberg deployment entirely.
 
 The Gotenberg container on Azure Container Apps exposes a health probe at its root port (3000). Container Apps manages health probing and restart automatically. Verify manually:
 
@@ -159,6 +164,58 @@ The Gotenberg container on Azure Container Apps exposes a health probe at its ro
 # From within the VNet or via Container Apps console
 curl http://ca-gotenberg-{env}:3000/health
 ```
+
+### Configuring System Settings
+
+System-wide settings are managed via the Admin Settings UI on the Administration page, or via the API at `PUT /api/v1/admin/settings`. Settings are stored in the `system_settings` database table and take effect immediately (no restart required).
+
+| Setting | Values | Default | Description |
+|---------|--------|---------|-------------|
+| `pdf_engine` | `opensource`, `aspose` | `opensource` | PDF conversion engine selection |
+| `aspose_words_license` | License key string | (empty) | Aspose.Words license for Word conversion |
+| `aspose_cells_license` | License key string | (empty) | Aspose.Cells license for Excel conversion |
+| `aspose_slides_license` | License key string | (empty) | Aspose.Slides license for PowerPoint conversion |
+| `malware_scanning_enabled` | `true`, `false` | `true` | Enable two-phase upload with staging container |
+| `gotenberg_url` | URL string | (empty) | Gotenberg URL for Office fallback (opensource engine only) |
+
+**Reading current settings:**
+```bash
+curl -s -H "Authorization: Bearer $TOKEN" \
+  https://{api-host}/api/v1/admin/settings | jq
+```
+
+**Updating a setting:**
+```bash
+curl -X PUT -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"pdf_engine": "aspose"}' \
+  https://{api-host}/api/v1/admin/settings
+```
+
+> [!IMPORTANT]
+> Only users with the Admin role can read or modify system settings. All setting changes are recorded in the audit log.
+
+### Version Rollback
+
+Admins can roll back a document to its previous version via the API:
+
+```bash
+curl -X POST \
+  https://{api-host}/api/v1/admin/documents/{document_id}/rollback \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+This demotes the current latest version and promotes the previous version. No binary data is modified -- only metadata pointers change. The rollback is recorded in the audit log.
+
+**Important considerations:**
+
+- Only the most recent version can be rolled back (one step back at a time).
+- The rollback creates an audit trail entry with the acting admin's identity.
+- Blob storage data is not deleted or modified; only the `is_latest` flag in the `document_versions` table is updated.
+- To roll back multiple versions, issue the rollback request repeatedly.
+
+> [!CAUTION]
+> Version rollback cannot be undone through the rollback endpoint. To restore a rolled-back version, upload the document again or issue another rollback if the version history permits.
 
 ---
 
@@ -371,9 +428,9 @@ AppRequests
 
 - [ ] Run the "PDF Conversion Failures" KQL query
 - [ ] Check Event Grid subscription health and delivery metrics
-- [ ] Verify Gotenberg container is running: check Container Apps replicas and logs
 - [ ] Check Functions app logs for specific error messages
-- [ ] Verify Functions can reach Gotenberg via the internal VNet (container apps are configured as internal)
+- [ ] Verify the `pdf_engine` system setting (`GET /api/v1/admin/settings`) to confirm which engine is active
+- [ ] If using Gotenberg as Office fallback: verify the Gotenberg container is running (check Container Apps replicas and logs) and that Functions can reach it via the internal VNet
 
 ---
 
@@ -432,7 +489,7 @@ Monthly cost review process:
 - [ ] Review cost breakdown by resource group in Azure Cost Management
 - [ ] Verify non-production environments have appropriate caps (e.g., 5 GB/day Log Analytics ingestion cap for dev)
 - [ ] Check for orphaned resources or unused reserved capacity
-- [ ] Review Gotenberg Container Apps scaling -- ensure min replicas are 0 in non-production to avoid idle costs
+- [ ] If Gotenberg is deployed: review Container Apps scaling -- ensure min replicas are 0 in non-production to avoid idle costs
 
 ---
 
@@ -461,7 +518,10 @@ az appservice plan update \
 > [!TIP]
 > Configure autoscale rules in Azure Monitor for automatic scaling based on CPU or request count.
 
-### ⚡ Gotenberg (Container Apps)
+### ⚡ Gotenberg (Container Apps) -- Optional
+
+> [!NOTE]
+> This section applies only if you have deployed Gotenberg as an Office-format conversion fallback for the opensource PDF engine. If using the Aspose engine exclusively, Gotenberg is not required and this section can be skipped.
 
 Gotenberg runs on Azure Container Apps with HTTP-based autoscaling:
 
