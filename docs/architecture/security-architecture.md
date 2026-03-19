@@ -140,5 +140,76 @@ All operations on FSIS documents are logged with:
 
 ---
 
+## 🛡️ Malware Scanning Pipeline
+
+All file uploads pass through a two-phase scanning pipeline before reaching the production storage container.
+
+```mermaid
+flowchart TD
+    Upload[User Uploads File] --> CheckSetting{malware_scanning_enabled?}
+    CheckSetting -->|Enabled| Staging[Upload to assurancenet-staging]
+    CheckSetting -->|Disabled| Direct[Upload directly to production]
+    Staging --> Scan[Defender for Storage Scan]
+    Scan -->|Clean| Promote[Promote to assurancenet-documents]
+    Scan -->|Infected| Quarantine[Quarantine + Audit Log]
+    Promote --> Record[scan_status = clean]
+    Quarantine --> Block[scan_status = infected]
+    Direct --> Record
+
+    style Upload fill:#dbeafe,stroke:#1971c2
+    style Promote fill:#dcfce7,stroke:#2f9e44
+    style Quarantine fill:#fee2e2,stroke:#c92a2a
+    style Scan fill:#fef3c7,stroke:#b45309
+```
+
+| Setting | Source | Default |
+|---------|--------|---------|
+| `malware_scanning_enabled` | `system_settings` DB table | `true` |
+| Staging container | `assurancenet-staging` | Created via Bicep |
+| Scanner | Microsoft Defender for Storage | Enabled via Bicep |
+
+> **Note:** The scanning toggle is configurable via the Admin Settings UI — no restart required.
+
+---
+
+## 🔐 RBAC Permission Model
+
+```mermaid
+graph LR
+    subgraph Users
+        U[App User]
+    end
+
+    subgraph Roles
+        R1[Admin]
+        R2[Case Manager]
+        R3[Document Manager]
+        R4[Reviewer]
+        R5[Viewer]
+    end
+
+    subgraph Permissions
+        P1[investigations.*]
+        P2[documents.create/read/download]
+        P3[documents.delete/merge]
+        P4[documents.rollback/versions]
+        P5[audit.read]
+        P6[users.read/manage]
+        P7[roles.manage]
+    end
+
+    U -->|M:N| R1 & R2 & R3 & R4 & R5
+    R1 --> P1 & P2 & P3 & P4 & P5 & P6 & P7
+    R2 --> P1 & P2
+    R3 --> P2 & P3
+    R4 --> P2 & P5
+    R5 -->|read only| P2
+
+    style R1 fill:#fee2e2,stroke:#c92a2a
+    style R5 fill:#dcfce7,stroke:#2f9e44
+```
+
+---
+
 **Related Architecture Docs:**
-[High-Level Architecture](high-level-architecture.md) | [Azure Architecture Detail](azure-architecture-detail.md) | [Workflow Diagrams](workflow-diagrams.md) | [Blob Hierarchy](blob-hierarchy.md) | [Monitoring & Telemetry](monitoring-telemetry.md) | [Data Migration](data-migration.md)
+[High-Level Architecture](high-level-architecture.md) | [Azure Architecture Detail](azure-architecture-detail.md) | [Workflow Diagrams](workflow-diagrams.md) | [Blob Hierarchy](blob-hierarchy.md) | [Data Model & RBAC](data-model.md) | [Monitoring & Telemetry](monitoring-telemetry.md) | [Data Migration](data-migration.md)

@@ -311,20 +311,27 @@ When you upload a non-PDF document, AssuranceNet automatically converts it to PD
 
 ```mermaid
 flowchart LR
-    A[Upload File] --> B[Store in<br/>Blob Storage]
-    B --> C[Event Grid<br/>Trigger]
-    C --> D[Azure Function]
-    D --> E[Gotenberg<br/>PDF Conversion]
-    E --> F[Store PDF in<br/>Blob Storage]
-    F --> G[Status: Ready]
+    A[Upload File] --> B{File Type?}
+    B -->|PDF| C[No conversion needed]
+    B -->|Image| D[Pillow converter]
+    B -->|Text/CSV| E[fpdf2 converter]
+    B -->|Office| F{Admin Engine Setting}
+    F -->|Aspose| G[Aspose SDK]
+    F -->|OpenSource| H[Gotenberg]
+    D --> I[PDF stored in Blob]
+    E --> I
+    G --> I
+    H --> I
+
+    style A fill:#dbeafe,stroke:#1971c2
+    style I fill:#dcfce7,stroke:#2f9e44
 ```
 
 1. You upload a file (for example, a .docx Word document).
 2. The file is stored in Azure Blob Storage.
-3. Azure Event Grid detects the new file and triggers an Azure Function.
-4. The Azure Function sends the file to the Gotenberg conversion service (powered by LibreOffice) for PDF rendering.
-5. The resulting PDF is stored alongside the original file in Blob Storage.
-6. The document's PDF status is updated to "Ready."
+3. The backend API converts the file to PDF in-process during the upload request. The conversion engine depends on the file type: images are converted with Pillow, text and CSV files with fpdf2, and Office documents with either Aspose or Gotenberg depending on the administrator's engine setting (see [System Settings](#system-settings)).
+4. The resulting PDF is stored alongside the original file in Blob Storage.
+5. The document's PDF status is updated to "Ready."
 
 > [!TIP]
 > You do not need to take any action to initiate conversion. It happens automatically. The typical conversion time is a few seconds to a few minutes depending on file size and format complexity.
@@ -659,7 +666,7 @@ To compute a SHA-256 checksum on your workstation:
 
 If a document remains in "Pending" status for more than 10 minutes:
 
-1. **Wait and refresh.** There may be a temporary delay in the Azure Event Grid trigger pipeline. Refresh the page after a few minutes.
+1. **Wait and refresh.** There may be a temporary delay in the in-process PDF conversion pipeline. Refresh the page after a few minutes.
 2. **Check other documents.** If all recently uploaded documents are stuck on "Pending," there may be a system-wide delay. Contact your administrator.
 3. **File format.** Some file formats may take longer to process than others. Very large files or files with complex formatting may require additional processing time.
 

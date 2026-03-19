@@ -197,5 +197,126 @@ sequenceDiagram
 
 ---
 
+## PDF Conversion Engine Selection
+
+```mermaid
+flowchart TD
+    Upload[File Uploaded] --> CheckType{Check MIME Type}
+    CheckType -->|application/pdf| Pass[Passthrough - no conversion]
+    CheckType -->|image/*| Pillow[Pillow + img2pdf]
+    CheckType -->|text/plain, text/csv, text/rtf| Fpdf2[fpdf2 text renderer]
+    CheckType -->|Office: DOCX, XLSX, PPTX| ReadSettings{Read system_settings}
+    ReadSettings -->|pdf_engine = aspose| Aspose[Aspose SDK]
+    ReadSettings -->|pdf_engine = opensource| CheckGotenberg{gotenberg_url set?}
+    CheckGotenberg -->|Yes| Gotenberg[Gotenberg HTTP API]
+    CheckGotenberg -->|No| Skip[Skip - mark pending]
+    Pillow --> StorePDF[Upload PDF to /pdf/v{N}/]
+    Fpdf2 --> StorePDF
+    Aspose --> StorePDF
+    Gotenberg --> StorePDF
+    StorePDF --> UpdateDB[UPDATE pdf_conversion_status = completed]
+```
+
+---
+
+## Malware Scanning Pipeline
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as FastAPI API
+    participant Settings as system_settings
+    participant Staging as assurancenet-staging
+    participant Defender as Defender for Storage
+    participant Prod as assurancenet-documents
+    participant SQL as Azure SQL
+
+    User->>API: Upload file
+    API->>Settings: Read malware_scanning_enabled
+    alt Scanning Enabled
+        API->>Staging: Upload to staging container
+        Defender->>Staging: Scan for malware
+        alt Clean
+            API->>Prod: promote_from_staging()
+            API->>Staging: Delete staging copy
+            API->>SQL: scan_status = 'clean'
+        else Infected
+            API->>SQL: scan_status = 'infected'
+            Note over Staging: File quarantined
+        end
+    else Scanning Disabled
+        API->>Prod: Upload directly
+        API->>SQL: scan_status = 'clean'
+    end
+    API->>SQL: Create DocumentVersion record
+```
+
+---
+
+## Admin Version Rollback
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant API as POST /admin/documents/{id}/rollback
+    participant SQL as Azure SQL
+    participant Audit as Audit Log
+
+    Admin->>API: Rollback request
+    API->>SQL: Get all versions (ordered by version_number DESC)
+    SQL-->>API: [v3 (latest), v2, v1]
+
+    alt Only 1 version exists
+        API-->>Admin: 400 Bad Request - cannot rollback
+    else 2+ versions exist
+        API->>SQL: UPDATE v3 SET is_latest = false
+        API->>SQL: UPDATE v2 SET is_latest = true
+        API->>SQL: UPDATE document SET current_version_id = v2.id
+        API->>Audit: Log rollback event
+        API-->>Admin: {rolled_back: v3, promoted: v2}
+    end
+    Note over SQL: No binary data modified - only metadata pointers
+```
+
+---
+
+## Request Correlation & Tracing
+
+```mermaid
+flowchart LR
+    subgraph Client
+        React[React SPA]
+    end
+
+    subgraph API["FastAPI Backend"]
+        MW[Auth Middleware] --> Route[Route Handler]
+        Route --> Service[Service Layer]
+    end
+
+    subgraph Data
+        Blob[Blob Storage]
+        SQL[Azure SQL]
+        AuditTbl[Audit Log]
+    end
+
+    subgraph Monitoring
+        AI[App Insights]
+        LAW[Log Analytics]
+    end
+
+    React -->|"correlation_id in header"| MW
+    Service --> Blob
+    Service --> SQL
+    Service --> AuditTbl
+    Route -->|"structlog with correlation_id"| AI
+    AI --> LAW
+
+    style React fill:#61dafb,color:#000
+    style MW fill:#009688,color:#fff
+    style AuditTbl fill:#ffd8a8,color:#000
+```
+
+---
+
 **Related Architecture Docs:**
 [High-Level Architecture](high-level-architecture.md) | [Azure Architecture Detail](azure-architecture-detail.md) | [Blob Hierarchy](blob-hierarchy.md) | [Security Architecture](security-architecture.md) | [Monitoring & Telemetry](monitoring-telemetry.md) | [Data Migration](data-migration.md)

@@ -56,6 +56,38 @@ If malware is detected the blob is quarantined and never promoted. This keeps th
 
 ---
 
+## Visual Overview
+
+```mermaid
+graph TD
+    subgraph Production["assurancenet-documents"]
+        INV1["INVESTIGATION-10001/"]
+        INV1 --> DOC1["{document-uuid-1}/"]
+        DOC1 --> ORIG1["original/"]
+        DOC1 --> PDF1["pdf/"]
+        ORIG1 --> V1O["v1/{file}.docx"]
+        ORIG1 --> V2O["v2/{file}-revised.docx"]
+        PDF1 --> V1P["v1/{file}.pdf"]
+        PDF1 --> V2P["v2/{file}-revised.pdf"]
+        INV1 --> DOC2["{document-uuid-2}/"]
+        DOC2 --> ORIG2["original/v1/{file}.csv"]
+        DOC2 --> PDF2["pdf/v1/{file}.pdf"]
+    end
+
+    subgraph Staging["assurancenet-staging"]
+        STG["Same path structure"]
+        STG --> SCAN{"Malware Scan"}
+        SCAN -->|Clean| PROMOTE["Promote to production"]
+        SCAN -->|Infected| QUARANTINE["Quarantine"]
+    end
+
+    style Production fill:#dcfce7,stroke:#2f9e44
+    style Staging fill:#fef9c3,stroke:#d97706
+    style QUARANTINE fill:#fee2e2,stroke:#c92a2a
+```
+
+---
+
 ## Example
 
 ```text
