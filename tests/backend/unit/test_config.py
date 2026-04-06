@@ -7,8 +7,10 @@ from app.config import Settings
 
 
 class TestSettings:
-    def test_default_settings(self):
+    def test_default_settings(self, monkeypatch):
         """Should create settings with defaults."""
+        # Clear ENVIRONMENT env var so we get the true default
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
         s = Settings()
         assert s.environment == "dev"
         assert s.max_upload_size_mb == 500

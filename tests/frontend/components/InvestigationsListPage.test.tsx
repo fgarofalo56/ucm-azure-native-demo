@@ -191,19 +191,22 @@ describe("InvestigationsListPage", () => {
       screen.getByRole("button", { name: /new investigation/i }),
     );
 
-    await user.type(
-      screen.getByPlaceholderText("e.g., INVESTIGATION-12345"),
-      "INVESTIGATION-999",
-    );
-    await user.type(
-      screen.getByPlaceholderText("Investigation title"),
-      "Test Investigation",
-    );
+    // Click the input first to ensure focus is set correctly
+    // (modal auto-focus via requestAnimationFrame may target another element)
+    const recordIdInput = screen.getByPlaceholderText("e.g., INVESTIGATION-12345");
+    await user.click(recordIdInput);
+    await user.type(recordIdInput, "INVESTIGATION-999");
 
-    const submitBtn = screen.getByRole("button", {
-      name: /create investigation/i,
+    const titleInput = screen.getByPlaceholderText("Investigation title");
+    await user.click(titleInput);
+    await user.type(titleInput, "Test Investigation");
+
+    await waitFor(() => {
+      const submitBtn = screen.getByRole("button", {
+        name: /create investigation/i,
+      });
+      expect(submitBtn).not.toBeDisabled();
     });
-    expect(submitBtn).not.toBeDisabled();
   });
 
   it("shows pagination when results exist", async () => {
