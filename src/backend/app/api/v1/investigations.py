@@ -57,13 +57,15 @@ async def list_investigations(
     app_user: Annotated[AppUser, Depends(require_permission("investigations", "read"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
     status_filter: InvestigationStatus | None = Query(None, alias="status"),
+    search: str | None = Query(None, min_length=1, max_length=200),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ) -> PaginatedResponse:
-    """List all investigations with optional status filter."""
+    """List all investigations with optional status filter and search."""
     metadata_svc = MetadataService(session)
-    investigations, total = await metadata_svc.list_investigations(
+    investigations, total, status_counts = await metadata_svc.list_investigations(
         status=status_filter,
+        search=search,
         page=page,
         page_size=page_size,
     )
@@ -72,7 +74,12 @@ async def list_investigations(
 
     return PaginatedResponse(
         data=data,
-        meta={"page": page, "page_size": page_size, "total": total},
+        meta={
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "status_counts": status_counts,
+        },
     )
 
 
