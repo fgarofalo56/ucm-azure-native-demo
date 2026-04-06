@@ -403,9 +403,7 @@ async def copy_documents_to_investigation(
             new_file_id = str(uuid.uuid4())
 
             # Upload to target investigation folder
-            new_blob_path = blob_svc.build_blob_path(
-                investigation.record_id, new_file_id, source_doc.original_filename
-            )
+            new_blob_path = blob_svc.build_blob_path(investigation.record_id, new_file_id, source_doc.original_filename)
             _, version_id = await blob_svc.upload_blob(new_blob_path, data, source_doc.content_type)
             checksum = BlobService.compute_checksum(data)
 

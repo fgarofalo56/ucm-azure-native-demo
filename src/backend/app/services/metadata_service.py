@@ -75,6 +75,7 @@ class MetadataService:
 
         if search:
             from sqlalchemy import or_
+
             pattern = f"%{search}%"
             search_filter = or_(
                 Investigation.title.ilike(pattern),
@@ -90,21 +91,21 @@ class MetadataService:
         total = (await self._session.execute(count_query)).scalar() or 0
 
         # Get global status counts (ignoring current status filter, but respecting search)
-        status_counts_query = (
-            select(Investigation.status, func.count())
-            .group_by(Investigation.status)
-        )
+        status_counts_query = select(Investigation.status, func.count()).group_by(Investigation.status)
         if search:
             from sqlalchemy import or_
+
             pattern = f"%{search}%"
-            status_counts_query = status_counts_query.where(or_(
-                Investigation.title.ilike(pattern),
-                Investigation.record_id.ilike(pattern),
-            ))
+            status_counts_query = status_counts_query.where(
+                or_(
+                    Investigation.title.ilike(pattern),
+                    Investigation.record_id.ilike(pattern),
+                )
+            )
         status_counts_result = await self._session.execute(status_counts_query)
         status_counts: dict[str, int] = {}
         for row in status_counts_result.all():
-            status_counts[row[0].value if hasattr(row[0], 'value') else str(row[0])] = row[1]
+            status_counts[row[0].value if hasattr(row[0], "value") else str(row[0])] = row[1]
 
         result = await self._session.execute(
             query.order_by(Investigation.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
