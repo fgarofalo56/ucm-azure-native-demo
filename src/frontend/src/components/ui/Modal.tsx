@@ -41,8 +41,8 @@ export default function Modal({
     );
     if (focusableElements.length === 0) return;
 
-    const firstEl = focusableElements[0];
-    const lastEl = focusableElements[focusableElements.length - 1];
+    const firstEl = focusableElements[0]!;
+    const lastEl = focusableElements[focusableElements.length - 1]!;
 
     if (e.shiftKey) {
       if (document.activeElement === firstEl) {
