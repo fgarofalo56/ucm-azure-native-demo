@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type {
+  CopyDocumentsResponse,
   Document,
   DocumentUploadResponse,
   DocumentVersion,
@@ -78,6 +79,17 @@ export async function listInvestigationDocuments(
   const { data } = await apiClient.get<PaginatedResponse<Document>>(
     `/investigations/${investigationId}/documents`,
     { params: { page, page_size: pageSize } },
+  );
+  return data;
+}
+
+export async function copyDocumentsToInvestigation(
+  investigationId: string,
+  documentIds: string[],
+): Promise<CopyDocumentsResponse> {
+  const { data } = await apiClient.post<CopyDocumentsResponse>(
+    "/documents/copy-to-investigation",
+    { investigation_id: investigationId, document_ids: documentIds },
   );
   return data;
 }

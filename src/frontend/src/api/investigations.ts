@@ -24,10 +24,11 @@ export async function listInvestigations(
   status?: string,
   page = 1,
   pageSize = 20,
+  search?: string,
 ): Promise<PaginatedResponse<Investigation>> {
   const { data } = await apiClient.get<PaginatedResponse<Investigation>>(
     "/investigations/",
-    { params: { status, page, page_size: pageSize } },
+    { params: { status, page, page_size: pageSize, search: search || undefined } },
   );
   return data;
 }

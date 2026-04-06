@@ -73,6 +73,7 @@ export interface PaginatedResponse<T> {
     page: number;
     page_size: number;
     total: number;
+    status_counts?: Record<string, number>;
   };
 }
 
@@ -147,6 +148,31 @@ export interface ExplorerItem {
 export interface ExplorerResponse {
   prefix: string;
   items: ExplorerItem[];
+}
+
+// Add to Investigation types
+export interface AddToInvestigationResult {
+  blob_path: string;
+  success: boolean;
+  file_id: string | null;
+  error: string | null;
+}
+
+export interface AddToInvestigationResponse {
+  investigation_id: string;
+  results: AddToInvestigationResult[];
+  total: number;
+  succeeded: number;
+  failed: number;
+}
+
+// Copy documents types
+export interface CopyDocumentsResponse {
+  investigation_id: string;
+  results: { document_id: string; success: boolean; new_file_id: string | null; error: string | null }[];
+  total: number;
+  succeeded: number;
+  failed: number;
 }
 
 // Batch upload types
