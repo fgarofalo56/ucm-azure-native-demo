@@ -67,8 +67,12 @@ def convert_to_pdf(
     if content_type in OFFICE_TYPES:
         if engine == "aspose":
             result = _convert_office_aspose(
-                file_data, filename, content_type,
-                aspose_words_license, aspose_cells_license, aspose_slides_license,
+                file_data,
+                filename,
+                content_type,
+                aspose_words_license,
+                aspose_cells_license,
+                aspose_slides_license,
             )
             if result:
                 return result
@@ -155,6 +159,7 @@ def _convert_office_aspose(
     try:
         if content_type in WORD_TYPES:
             import aspose.words as aw
+
             if words_license:
                 lic = aw.License()
                 lic.set_license(io.BytesIO(words_license.encode()))
@@ -166,6 +171,7 @@ def _convert_office_aspose(
 
         if content_type in EXCEL_TYPES:
             import aspose.cells as ac
+
             if cells_license:
                 lic = ac.License()
                 lic.set_license(io.BytesIO(cells_license.encode()))
@@ -177,6 +183,7 @@ def _convert_office_aspose(
 
         if content_type in POWERPOINT_TYPES:
             import aspose.slides as slides
+
             if slides_license:
                 lic = slides.License()
                 lic.set_license(io.BytesIO(slides_license.encode()))

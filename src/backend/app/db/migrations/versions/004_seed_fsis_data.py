@@ -80,29 +80,134 @@ INVESTIGATIONS = [
 # (investigation_index, document_type, title, filename, mime_type, size_bytes)
 DOCUMENTS = [
     # INVESTIGATION-10001
-    (0, "investigation_report", "FSIS Annual Sampling Plan FY2025", "FSIS-Annual-Sampling-Plan-FY2025.pdf", "application/pdf", 2457600),
-    (0, "investigation_report", "FSIS Annual Sampling Plan FY2024", "FSIS-Annual-Sampling-Plan-FY2024.pdf", "application/pdf", 2150400),
+    (
+        0,
+        "investigation_report",
+        "FSIS Annual Sampling Plan FY2025",
+        "FSIS-Annual-Sampling-Plan-FY2025.pdf",
+        "application/pdf",
+        2457600,
+    ),
+    (
+        0,
+        "investigation_report",
+        "FSIS Annual Sampling Plan FY2024",
+        "FSIS-Annual-Sampling-Plan-FY2024.pdf",
+        "application/pdf",
+        2150400,
+    ),
     # INVESTIGATION-10002
-    (1, "laboratory_result", "National Residue Program FY2019 Results (Red Book)", "fy2019-red-book.pdf", "application/pdf", 3276800),
-    (1, "inspection_form", "National Residue Program FY2019 Sampling Plan (Blue Book)", "2019-blue-book.pdf", "application/pdf", 1843200),
-    (1, "laboratory_result", "Residue Quarterly Report FY23 Q2", "Dataset_QSR_Residue_Tolerances_SummaryReport_FY23Q2.pdf", "application/pdf", 1024000),
+    (
+        1,
+        "laboratory_result",
+        "National Residue Program FY2019 Results (Red Book)",
+        "fy2019-red-book.pdf",
+        "application/pdf",
+        3276800,
+    ),
+    (
+        1,
+        "inspection_form",
+        "National Residue Program FY2019 Sampling Plan (Blue Book)",
+        "2019-blue-book.pdf",
+        "application/pdf",
+        1843200,
+    ),
+    (
+        1,
+        "laboratory_result",
+        "Residue Quarterly Report FY23 Q2",
+        "Dataset_QSR_Residue_Tolerances_SummaryReport_FY23Q2.pdf",
+        "application/pdf",
+        1024000,
+    ),
     # INVESTIGATION-10003
-    (2, "investigation_report", "FY2024 Sampling Summary Report", "FY2024A_Sampling-Summary-Report.pdf", "application/pdf", 1740800),
-    (2, "investigation_report", "FY2021 Sampling Summary Report", "FY2021-Sampling-Summary-Report.pdf", "application/pdf", 1536000),
+    (
+        2,
+        "investigation_report",
+        "FY2024 Sampling Summary Report",
+        "FY2024A_Sampling-Summary-Report.pdf",
+        "application/pdf",
+        1740800,
+    ),
+    (
+        2,
+        "investigation_report",
+        "FY2021 Sampling Summary Report",
+        "FY2021-Sampling-Summary-Report.pdf",
+        "application/pdf",
+        1536000,
+    ),
     # INVESTIGATION-10004
-    (3, "inspection_form", "Directive 6900.2 - Humane Handling Procedures", "humane-handling-verification-procedures.pdf", "application/pdf", 921600),
+    (
+        3,
+        "inspection_form",
+        "Directive 6900.2 - Humane Handling Procedures",
+        "humane-handling-verification-procedures.pdf",
+        "application/pdf",
+        921600,
+    ),
     # INVESTIGATION-10005
-    (4, "supporting_evidence", "MPI Directory by Establishment Number", "MPI_Directory_by_Establishment_Number.csv", "text/csv", 5242880),
-    (4, "supporting_evidence", "MPI Directory by Establishment Name", "MPI_Directory_by_Establishment_Name.csv", "text/csv", 5242880),
+    (
+        4,
+        "supporting_evidence",
+        "MPI Directory by Establishment Number",
+        "MPI_Directory_by_Establishment_Number.csv",
+        "text/csv",
+        5242880,
+    ),
+    (
+        4,
+        "supporting_evidence",
+        "MPI Directory by Establishment Name",
+        "MPI_Directory_by_Establishment_Name.csv",
+        "text/csv",
+        5242880,
+    ),
     (4, "correspondence", "CSV File Opening Guide", "CSV_Guide.pdf", "application/pdf", 204800),
     # INVESTIGATION-10006
-    (5, "legal_document", "Quarterly Enforcement Report FY2024 Q1", "quarterly-enforcement-report-fy2024-q1.pdf", "application/pdf", 1433600),
+    (
+        5,
+        "legal_document",
+        "Quarterly Enforcement Report FY2024 Q1",
+        "quarterly-enforcement-report-fy2024-q1.pdf",
+        "application/pdf",
+        1433600,
+    ),
     # INVESTIGATION-10007
-    (6, "laboratory_result", "STEC Testing Results FY2024", "FSIS-STEC-Testing-Results-FY2024.pdf", "application/pdf", 1228800),
-    (6, "inspection_form", "STEC Sampling Methodology (MLG 5C)", "STEC-Sampling-Methodology.pdf", "application/pdf", 819200),
+    (
+        6,
+        "laboratory_result",
+        "STEC Testing Results FY2024",
+        "FSIS-STEC-Testing-Results-FY2024.pdf",
+        "application/pdf",
+        1228800,
+    ),
+    (
+        6,
+        "inspection_form",
+        "STEC Sampling Methodology (MLG 5C)",
+        "STEC-Sampling-Methodology.pdf",
+        "application/pdf",
+        819200,
+    ),
     # INVESTIGATION-10008
-    (7, "legal_document", "Directive 9900.1 - Import Reinspection", "import-reinspection-procedures-9900.1.pdf", "application/pdf", 1126400),
-    (7, "investigation_report", "Foreign Audit Report 2024", "foreign-audit-report-2024.pdf", "application/pdf", 2048000),
+    (
+        7,
+        "legal_document",
+        "Directive 9900.1 - Import Reinspection",
+        "import-reinspection-procedures-9900.1.pdf",
+        "application/pdf",
+        1126400,
+    ),
+    (
+        7,
+        "investigation_report",
+        "Foreign Audit Report 2024",
+        "foreign-audit-report-2024.pdf",
+        "application/pdf",
+        2048000,
+    ),
 ]
 
 
@@ -183,6 +288,7 @@ def upgrade() -> None:
         pdf_status = "not_required" if mime_type == "application/pdf" else "pending"
         # Dummy checksum (SHA-256 of filename for determinism)
         import hashlib
+
         checksum = hashlib.sha256(filename.encode()).hexdigest()
 
         # Insert document, get ID

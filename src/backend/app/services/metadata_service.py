@@ -74,6 +74,7 @@ class MetadataService:
 
         if search:
             from sqlalchemy import or_
+
             pattern = f"%{search}%"
             search_filter = or_(
                 Investigation.title.ilike(pattern),
@@ -88,21 +89,22 @@ class MetadataService:
 
         total = (await self._session.execute(count_query)).scalar() or 0
 
-        status_counts_query = (
-            select(Investigation.status, func.count())
-            .group_by(Investigation.status)
-        )
+        # Get global status counts (ignoring current status filter, but respecting search)
+        status_counts_query = select(Investigation.status, func.count()).group_by(Investigation.status)
         if search:
             from sqlalchemy import or_
+
             pattern = f"%{search}%"
-            status_counts_query = status_counts_query.where(or_(
-                Investigation.title.ilike(pattern),
-                Investigation.record_id.ilike(pattern),
-            ))
+            status_counts_query = status_counts_query.where(
+                or_(
+                    Investigation.title.ilike(pattern),
+                    Investigation.record_id.ilike(pattern),
+                )
+            )
         status_counts_result = await self._session.execute(status_counts_query)
         status_counts: dict[str, int] = {}
         for row in status_counts_result.all():
-            status_counts[row[0].value if hasattr(row[0], 'value') else str(row[0])] = row[1]
+            status_counts[row[0].value if hasattr(row[0], "value") else str(row[0])] = row[1]
 
         result = await self._session.execute(
             query.order_by(Investigation.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
@@ -211,8 +213,7 @@ class MetadataService:
 
         # Get next version number
         max_ver_result = await self._session.execute(
-            select(func.max(DocumentVersion.version_number))
-            .where(DocumentVersion.document_id == document_id)
+            select(func.max(DocumentVersion.version_number)).where(DocumentVersion.document_id == document_id)
         )
         max_ver = max_ver_result.scalar() or 0
 
@@ -284,9 +285,7 @@ class MetadataService:
         return list(result.scalars().all()), total
 
     async def get_version(self, version_id: UUID) -> DocumentVersion | None:
-        result = await self._session.execute(
-            select(DocumentVersion).where(DocumentVersion.id == version_id)
-        )
+        result = await self._session.execute(select(DocumentVersion).where(DocumentVersion.id == version_id))
         return result.scalar_one_or_none()
 
     async def list_versions_for_document(self, document_id: UUID) -> list[DocumentVersion]:
@@ -345,9 +344,7 @@ class MetadataService:
         if error:
             values["pdf_conversion_error"] = error
 
-        await self._session.execute(
-            update(DocumentVersion).where(DocumentVersion.id == version_id).values(**values)
-        )
+        await self._session.execute(update(DocumentVersion).where(DocumentVersion.id == version_id).values(**values))
 
     async def soft_delete_document(self, document_id: UUID, user_id: str) -> None:
         await self._session.execute(

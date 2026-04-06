@@ -3,7 +3,7 @@
 from datetime import datetime
 
 import structlog
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import SystemSetting
@@ -48,17 +48,13 @@ class SettingsService:
 
     async def get(self, key: str) -> str:
         """Get a single setting value. Returns default if not found."""
-        result = await self._session.execute(
-            select(SystemSetting.value).where(SystemSetting.key == key)
-        )
+        result = await self._session.execute(select(SystemSetting.value).where(SystemSetting.key == key))
         row = result.scalar_one_or_none()
         return row if row is not None else DEFAULTS.get(key, "")
 
     async def set(self, key: str, value: str, user_id: str | None = None) -> None:
         """Set a setting value. Creates if not exists, updates if exists."""
-        existing = await self._session.execute(
-            select(SystemSetting).where(SystemSetting.key == key)
-        )
+        existing = await self._session.execute(select(SystemSetting).where(SystemSetting.key == key))
         setting = existing.scalar_one_or_none()
 
         if setting:
@@ -66,11 +62,13 @@ class SettingsService:
             setting.updated_at = datetime.utcnow()
             setting.updated_by = user_id
         else:
-            self._session.add(SystemSetting(
-                key=key,
-                value=value,
-                updated_by=user_id,
-            ))
+            self._session.add(
+                SystemSetting(
+                    key=key,
+                    value=value,
+                    updated_by=user_id,
+                )
+            )
         await self._session.flush()
         logger.info("setting_updated", key=key, user_id=user_id)
 

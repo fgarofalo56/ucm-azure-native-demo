@@ -13,7 +13,7 @@ from app.db.models import AppUser
 from app.db.session import get_db_session
 from app.dependencies import get_blob_service_client
 from app.middleware.auth import require_permission
-from app.models.enums import AuditEventType, MERGE_ORDER_CONFIG, DocumentType, PdfConversionStatus
+from app.models.enums import MERGE_ORDER_CONFIG, AuditEventType, DocumentType, PdfConversionStatus
 from app.models.schemas import PdfMergeRequest
 from app.services.audit_service import AuditService
 from app.services.blob_service import BlobService
@@ -66,11 +66,7 @@ async def merge_pdfs(
         documents_with_versions.append((document, latest))
 
     # Sort by document type merge order (rule-based, not user order)
-    documents_with_versions.sort(
-        key=lambda dv: MERGE_ORDER_CONFIG.get(
-            DocumentType(dv[0].document_type), 99
-        )
-    )
+    documents_with_versions.sort(key=lambda dv: MERGE_ORDER_CONFIG.get(DocumentType(dv[0].document_type), 99))
 
     # Collect PDF contents from sorted documents
     pdf_contents: list[bytes] = []

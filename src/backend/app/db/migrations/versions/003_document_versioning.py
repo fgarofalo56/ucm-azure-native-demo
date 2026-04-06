@@ -88,8 +88,9 @@ def upgrade() -> None:
 
     # 5. Now make created_by NOT NULL and document_type NOT NULL
     op.alter_column("documents", "created_by", nullable=False, existing_type=sa.String(255))
-    op.alter_column("documents", "document_type", nullable=False, existing_type=sa.String(50),
-                     server_default=sa.text("'other'"))
+    op.alter_column(
+        "documents", "document_type", nullable=False, existing_type=sa.String(50), server_default=sa.text("'other'")
+    )
 
     # 6. Drop old columns from documents (now in document_versions)
     op.drop_index("ix_documents_file_id", table_name="documents")
@@ -135,7 +136,12 @@ def upgrade() -> None:
         permissions_table,
         [
             {"id": 14, "resource": "documents", "action": "rollback", "description": "Roll back document versions"},
-            {"id": 15, "resource": "documents", "action": "versions", "description": "View all document versions (admin)"},
+            {
+                "id": 15,
+                "resource": "documents",
+                "action": "versions",
+                "description": "View all document versions (admin)",
+            },
         ],
     )
 
@@ -150,7 +156,7 @@ def upgrade() -> None:
         [
             {"role_id": 1, "permission_id": 14},  # admin -> rollback
             {"role_id": 1, "permission_id": 15},  # admin -> versions
-            {"role_id": 4, "permission_id": 7},   # reviewer -> download
+            {"role_id": 4, "permission_id": 7},  # reviewer -> download
         ],
     )
 

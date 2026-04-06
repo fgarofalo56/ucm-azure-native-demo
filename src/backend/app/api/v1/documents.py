@@ -50,7 +50,9 @@ async def _do_pdf_conversion(
     cells_lic = await svc.get("aspose_cells_license")
     slides_lic = await svc.get("aspose_slides_license")
     return convert_to_pdf(
-        file_data, filename, content_type,
+        file_data,
+        filename,
+        content_type,
         engine=engine,
         gotenberg_url=gotenberg_url,
         aspose_words_license=words_lic,
@@ -165,9 +167,7 @@ async def upload_document(
     )
 
     # Build versioned blob path and upload
-    blob_path = blob_svc.build_blob_path(
-        investigation.record_id, str(document.id), version.version_number, filename
-    )
+    blob_path = blob_svc.build_blob_path(investigation.record_id, str(document.id), version.version_number, filename)
     await _upload_with_scanning(blob_svc, blob_path, file_data, content_type, session)
 
     # Update version with actual blob path
@@ -269,9 +269,7 @@ async def upload_new_version(
         pdf_conversion_status=pdf_status,
     )
 
-    blob_path = blob_svc.build_blob_path(
-        investigation.record_id, str(document.id), version.version_number, filename
-    )
+    blob_path = blob_svc.build_blob_path(investigation.record_id, str(document.id), version.version_number, filename)
     await _upload_with_scanning(blob_svc, blob_path, file_data, content_type, session)
 
     version.blob_path_original = blob_path
@@ -609,7 +607,7 @@ async def copy_documents_to_investigation(
                 user_name=app_user.display_name,
                 document_type=source_doc.document_type,
                 title=source_doc.title,
-                pdf_conversion_status=latest.pdf_conversion_status,
+                pdf_conversion_status=PdfConversionStatus(latest.pdf_conversion_status),
             )
 
             new_blob_path = blob_svc.build_blob_path(

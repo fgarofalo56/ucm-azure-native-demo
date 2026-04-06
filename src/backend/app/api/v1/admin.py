@@ -23,11 +23,11 @@ from app.models.schemas import (
     RollbackResponse,
     UserRoleAssignment,
 )
-from app.services.settings_service import SettingsService
 from app.services.audit_service import AuditService
 from app.services.blob_service import BlobService
 from app.services.metadata_service import MetadataService
 from app.services.rbac_service import RBACService
+from app.services.settings_service import SettingsService
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -297,8 +297,12 @@ async def update_system_settings(
     svc = SettingsService(session)
 
     valid_keys = {
-        "pdf_engine", "aspose_words_license", "aspose_cells_license",
-        "aspose_slides_license", "malware_scanning_enabled", "gotenberg_url",
+        "pdf_engine",
+        "aspose_words_license",
+        "aspose_cells_license",
+        "aspose_slides_license",
+        "malware_scanning_enabled",
+        "gotenberg_url",
     }
     invalid = set(updates.keys()) - valid_keys
     if invalid:

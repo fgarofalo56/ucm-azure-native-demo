@@ -168,9 +168,7 @@ class DocumentVersion(Base):
     __tablename__ = "document_versions"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    document_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
-    )
+    document_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     version_number: Mapped[int] = mapped_column(Integer, nullable=False)
     original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
     mime_type: Mapped[str | None] = mapped_column(String(255))
@@ -194,9 +192,7 @@ class DocumentVersion(Base):
     uploaded_by_name: Mapped[str | None] = mapped_column(String(255))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
-    document: Mapped["Document"] = relationship(
-        back_populates="versions", foreign_keys=[document_id]
-    )
+    document: Mapped["Document"] = relationship(back_populates="versions", foreign_keys=[document_id])
 
     __table_args__ = (
         Index("ix_docver_document_id", "document_id"),
