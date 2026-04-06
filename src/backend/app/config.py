@@ -43,7 +43,9 @@ class Settings(BaseSettings):
     azure_authority_host: str = "https://login.microsoftonline.com"
 
     # CORS
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://yellow-field-05ae8b90f.2.azurestaticapps.net"
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:5173,https://yellow-field-05ae8b90f.2.azurestaticapps.net"
+    )
 
     # Application limits
     max_upload_size_mb: int = 500

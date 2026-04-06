@@ -17,6 +17,9 @@ from app.models.enums import AuditEventType, PdfConversionStatus
 from app.models.schemas import (
     BatchUploadResponse,
     BatchUploadResult,
+    CopyDocumentResult,
+    CopyDocumentsRequest,
+    CopyDocumentsResponse,
     DocumentResponse,
     DocumentUploadResponse,
     DocumentVersionResponse,
@@ -365,6 +368,79 @@ async def batch_upload_documents(
 
     return BatchUploadResponse(
         investigation_id=str(investigation_id),
+        results=results,
+        total=len(results),
+        succeeded=succeeded,
+        failed=len(results) - succeeded,
+    )
+
+
+@router.post("/copy-to-investigation", response_model=CopyDocumentsResponse)
+async def copy_documents_to_investigation(
+    body: CopyDocumentsRequest,
+    app_user: Annotated[AppUser, Depends(require_permission("documents", "create"))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> CopyDocumentsResponse:
+    """Copy existing documents to a different investigation."""
+    metadata_svc = MetadataService(session)
+    blob_svc = BlobService(get_blob_service_client())
+    audit_svc = AuditService(session)
+
+    investigation = await metadata_svc.get_investigation(uuid.UUID(body.investigation_id))
+    if not investigation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investigation not found")
+
+    results: list[CopyDocumentResult] = []
+    for doc_id in body.document_ids:
+        try:
+            source_doc = await metadata_svc.get_document(uuid.UUID(doc_id))
+            if not source_doc:
+                results.append(CopyDocumentResult(document_id=doc_id, success=False, error="Document not found"))
+                continue
+
+            # Download source blob
+            data = await blob_svc.download_blob(source_doc.blob_path)
+            new_file_id = str(uuid.uuid4())
+
+            # Upload to target investigation folder
+            new_blob_path = blob_svc.build_blob_path(investigation.record_id, new_file_id, source_doc.original_filename)
+            _, version_id = await blob_svc.upload_blob(new_blob_path, data, source_doc.content_type)
+            checksum = BlobService.compute_checksum(data)
+
+            # Create new document record
+            await metadata_svc.create_document(
+                investigation_id=uuid.UUID(body.investigation_id),
+                file_id=new_file_id,
+                original_filename=source_doc.original_filename,
+                content_type=source_doc.content_type,
+                file_size_bytes=len(data),
+                blob_path=new_blob_path,
+                blob_version_id=version_id,
+                checksum_sha256=checksum,
+                user_id=app_user.entra_oid,
+                user_name=app_user.display_name,
+                pdf_conversion_status=PdfConversionStatus(source_doc.pdf_conversion_status),
+            )
+
+            results.append(CopyDocumentResult(document_id=doc_id, success=True, new_file_id=new_file_id))
+        except Exception as e:
+            logger.error("copy_document_failed", document_id=doc_id, error=str(e))
+            results.append(CopyDocumentResult(document_id=doc_id, success=False, error=str(e)))
+
+    succeeded = sum(1 for r in results if r.success)
+    await audit_svc.log_event(
+        event_type=AuditEventType.BATCH_UPLOAD,
+        user_id=app_user.entra_oid,
+        user_principal_name=app_user.email,
+        action="create",
+        result="success" if succeeded > 0 else "failure",
+        resource_type="investigation",
+        resource_id=body.investigation_id,
+        details={"source": "copy", "total": len(results), "succeeded": succeeded},
+    )
+
+    return CopyDocumentsResponse(
+        investigation_id=body.investigation_id,
         results=results,
         total=len(results),
         succeeded=succeeded,

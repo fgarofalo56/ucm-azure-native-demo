@@ -51,6 +51,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # Global exception handler — ensures unhandled errors return JSON
 # (so CORSMiddleware can attach headers to the response)
 @app.exception_handler(Exception)
