@@ -419,7 +419,7 @@ async def copy_documents_to_investigation(
                 checksum_sha256=checksum,
                 user_id=app_user.entra_oid,
                 user_name=app_user.display_name,
-                pdf_conversion_status=source_doc.pdf_conversion_status,
+                pdf_conversion_status=PdfConversionStatus(source_doc.pdf_conversion_status),
             )
 
             results.append(CopyDocumentResult(document_id=doc_id, success=True, new_file_id=new_file_id))
