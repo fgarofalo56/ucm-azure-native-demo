@@ -310,7 +310,7 @@ async def upload_new_version(
         original_filename=filename,
         file_size_bytes=len(file_data),
         checksum=checksum,
-        document_type=document.document_type,
+        document_type=DocumentType(document.document_type),
         pdf_conversion_status=pdf_status,
         blob_path=blob_path,
     )
@@ -605,7 +605,7 @@ async def copy_documents_to_investigation(
                 checksum=BlobService.compute_checksum(data),
                 user_id=app_user.entra_oid,
                 user_name=app_user.display_name,
-                document_type=source_doc.document_type,
+                document_type=DocumentType(source_doc.document_type),
                 title=source_doc.title,
                 pdf_conversion_status=PdfConversionStatus(latest.pdf_conversion_status),
             )

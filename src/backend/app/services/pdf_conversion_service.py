@@ -95,7 +95,7 @@ def _convert_image(file_data: bytes, content_type: str) -> bytes | None:
 
         image = Image.open(io.BytesIO(file_data))
         if image.mode in ("RGBA", "P", "LA"):
-            image = image.convert("RGB")
+            image = image.convert("RGB")  # type: ignore[assignment]
 
         output = io.BytesIO()
         image.save(output, format="PDF", resolution=image.info.get("dpi", (300, 300))[0])
@@ -124,7 +124,7 @@ def _convert_text(file_data: bytes, filename: str) -> bytes | None:
         pdf.add_page()
 
         pdf.set_font("Helvetica", "B", size=12)
-        pdf.cell(0, 10, filename, ln=True)
+        pdf.cell(0, 10, filename, ln=True)  # type: ignore[arg-type]
         pdf.ln(5)
 
         pdf.set_font("Courier", size=8)

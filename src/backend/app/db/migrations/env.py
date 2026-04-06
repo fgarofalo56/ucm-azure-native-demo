@@ -41,7 +41,7 @@ def _get_url() -> str:
         )
         return f"mssql+aioodbc:///?odbc_connect={quote_plus(odbc_connect)}"
 
-    return config.get_main_option("sqlalchemy.url")
+    return config.get_main_option("sqlalchemy.url")  # type: ignore[return-value]
 
 
 def run_migrations_offline() -> None:

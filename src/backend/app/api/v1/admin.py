@@ -12,7 +12,7 @@ from app.db.models import AppUser
 from app.db.session import get_db_session
 from app.dependencies import get_blob_service_client
 from app.middleware.auth import get_app_user, require_permission
-from app.models.enums import AuditEventType
+from app.models.enums import AuditEventType, DocumentType
 from app.models.schemas import (
     AdminDocumentDetailResponse,
     AppUserResponse,
@@ -149,7 +149,7 @@ async def get_document_detail(
     return AdminDocumentDetailResponse(
         id=document.id,
         investigation_id=document.investigation_id,
-        document_type=document.document_type,
+        document_type=DocumentType(document.document_type),
         title=document.title,
         created_by=document.created_by,
         created_by_name=document.created_by_name,

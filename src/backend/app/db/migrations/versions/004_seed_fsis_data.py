@@ -277,7 +277,7 @@ def upgrade() -> None:
             """),
             inv,
         )
-        inv_id = result.fetchone()[0]
+        inv_id = result.fetchone()[0]  # type: ignore[index]
         inv_ids.append(inv_id)
 
     # Insert documents + versions
@@ -308,7 +308,7 @@ def upgrade() -> None:
                 "created_by_name": SYSTEM_USER_NAME,
             },
         )
-        doc_id = doc_result.fetchone()[0]
+        doc_id = doc_result.fetchone()[0]  # type: ignore[index]
 
         # Build versioned blob path
         blob_path = f"{record_id}/{doc_id}/original/v1/{filename}"
@@ -338,7 +338,7 @@ def upgrade() -> None:
                 "uploaded_by_name": SYSTEM_USER_NAME,
             },
         )
-        ver_id = ver_result.fetchone()[0]
+        ver_id = ver_result.fetchone()[0]  # type: ignore[index]
 
         # Update document's current_version_id
         op.get_bind().execute(
