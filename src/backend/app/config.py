@@ -1,5 +1,6 @@
 """Application configuration using pydantic-settings."""
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -56,6 +57,29 @@ class Settings(BaseSettings):
     max_merge_files: int = 50
     max_merge_size_mb: int = 500
     log_level: str = "INFO"
+
+    @field_validator("environment")
+    @classmethod
+    def validate_environment(cls, v: str) -> str:
+        allowed = {"dev", "staging", "prod", "test"}
+        if v not in allowed:
+            raise ValueError(f"environment must be one of {allowed}")
+        return v
+
+    @field_validator("max_upload_size_mb", "max_merge_size_mb")
+    @classmethod
+    def validate_size_limits(cls, v: int) -> int:
+        if v < 1 or v > 2048:
+            raise ValueError("Size must be between 1 and 2048 MB")
+        return v
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, v: str) -> str:
+        allowed = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+        if v.upper() not in allowed:
+            raise ValueError(f"log_level must be one of {allowed}")
+        return v.upper()
 
     @property
     def max_upload_size_bytes(self) -> int:

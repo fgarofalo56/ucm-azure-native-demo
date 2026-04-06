@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MsalProvider } from "@azure/msal-react";
 import { msalInstance, initializeMsal } from "./auth/msal-instance";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { ToastProvider } from "./contexts/ToastContext";
 import { App } from "./App";
 import "./styles/globals.css";
 
@@ -24,9 +25,11 @@ initializeMsal().then(() => {
       <MsalProvider instance={msalInstance}>
         <QueryClientProvider client={queryClient}>
           <ThemeProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
+            <ToastProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </ToastProvider>
           </ThemeProvider>
         </QueryClientProvider>
       </MsalProvider>

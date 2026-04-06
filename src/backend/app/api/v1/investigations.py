@@ -121,6 +121,21 @@ async def update_investigation(
     return InvestigationResponse.model_validate(investigation)
 
 
+@router.delete("/{investigation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_investigation(
+    investigation_id: uuid.UUID,
+    app_user: Annotated[AppUser, Depends(require_permission("investigations", "delete"))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Soft-delete an investigation and all its documents."""
+    metadata_svc = MetadataService(session)
+    investigation = await metadata_svc.get_investigation(investigation_id)
+    if not investigation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investigation not found")
+
+    await metadata_svc.soft_delete_investigation(investigation_id, app_user.entra_oid)
+
+
 @router.get("/{investigation_id}/documents", response_model=PaginatedResponse)
 async def list_investigation_documents(
     investigation_id: uuid.UUID,

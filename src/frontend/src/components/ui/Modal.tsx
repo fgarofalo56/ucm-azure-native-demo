@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useCallback } from "react";
 import { X } from "lucide-react";
 import { clsx } from "clsx";
 
@@ -27,6 +27,35 @@ export default function Modal({
   footer,
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const hasAutoFocused = useRef(false);
+
+  // Focus trap: keep Tab cycling within the modal
+  const handleFocusTrap = useCallback((e: KeyboardEvent) => {
+    if (e.key !== "Tab") return;
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const focusableElements = panel.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusableElements.length === 0) return;
+
+    const firstEl = focusableElements[0];
+    const lastEl = focusableElements[focusableElements.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === firstEl) {
+        e.preventDefault();
+        lastEl.focus();
+      }
+    } else {
+      if (document.activeElement === lastEl) {
+        e.preventDefault();
+        firstEl.focus();
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -34,13 +63,30 @@ export default function Modal({
     };
     if (isOpen) {
       document.addEventListener("keydown", handleEscape);
+      document.addEventListener("keydown", handleFocusTrap);
       document.body.style.overflow = "hidden";
+
+      // Focus the first focusable element only on initial open
+      if (!hasAutoFocused.current) {
+        hasAutoFocused.current = true;
+        requestAnimationFrame(() => {
+          const panel = panelRef.current;
+          if (!panel) return;
+          const firstFocusable = panel.querySelector<HTMLElement>(
+            'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          );
+          firstFocusable?.focus();
+        });
+      }
+    } else {
+      hasAutoFocused.current = false;
     }
     return () => {
       document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("keydown", handleFocusTrap);
       document.body.style.overflow = "";
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, handleFocusTrap]);
 
   if (!isOpen) return null;
 
@@ -58,6 +104,10 @@ export default function Modal({
       }}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
         className={clsx(
           "bg-white rounded-xl shadow-xl w-full",
           "dark:bg-secondary-900 dark:ring-1 dark:ring-secondary-700",
@@ -72,7 +122,7 @@ export default function Modal({
             "border-b border-secondary-200 dark:border-secondary-700",
           )}
         >
-          <h2 className="text-lg font-semibold text-secondary-900 dark:text-secondary-50">
+          <h2 id="modal-title" className="text-lg font-semibold text-secondary-900 dark:text-secondary-50">
             {title}
           </h2>
           <button

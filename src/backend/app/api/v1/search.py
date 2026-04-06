@@ -18,6 +18,8 @@ router = APIRouter()
 async def search_all(
     q: str = Query(min_length=2, max_length=200),
     type: str | None = Query(None, pattern="^(investigation|document)$"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     app_user: AppUser = Depends(get_app_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> SearchResponse:
@@ -28,6 +30,7 @@ async def search_all(
     """
     pattern = f"%{q}%"
     results: list[SearchResultItem] = []
+    offset = (page - 1) * page_size
 
     if type is None or type == "investigation":
         inv_query = (
@@ -39,7 +42,8 @@ async def search_all(
                     Investigation.record_id.ilike(pattern),
                 )
             )
-            .limit(20)
+            .offset(offset)
+            .limit(page_size)
         )
         inv_result = await session.execute(inv_query)
         for inv in inv_result.scalars().all():
@@ -66,7 +70,8 @@ async def search_all(
                     DocumentVersion.original_filename.ilike(pattern),
                 ),
             )
-            .limit(20)
+            .offset(offset)
+            .limit(page_size)
         )
         doc_result = await session.execute(doc_query)
         for doc in doc_result.scalars().unique().all():
@@ -86,4 +91,6 @@ async def search_all(
         query=q,
         results=results,
         total=len(results),
+        page=page,
+        page_size=page_size,
     )

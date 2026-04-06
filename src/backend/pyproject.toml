@@ -33,6 +33,7 @@ dependencies = [
     "python-jose[cryptography]>=3.3.0",
     "Pillow>=10.0.0",
     "fpdf2>=2.7.0",
+    "slowapi>=0.1.9",
 ]
 
 [project.optional-dependencies]
