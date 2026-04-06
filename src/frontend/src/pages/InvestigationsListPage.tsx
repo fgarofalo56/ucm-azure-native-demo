@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   useInvestigations,
@@ -28,12 +28,23 @@ export function InvestigationsListPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
+
+  // Debounce search query to avoid excessive API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const { data, isLoading, error } = useInvestigations(
     statusFilter === "all" ? undefined : statusFilter,
     page,
+    debouncedSearch || undefined,
   );
   const createMutation = useCreateInvestigation();
 
@@ -41,32 +52,18 @@ export function InvestigationsListPage() {
   const total = data?.meta.total ?? 0;
   const pageSize = data?.meta.page_size ?? 20;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const statusCounts = data?.meta.status_counts ?? {};
 
-  // Client-side search filter
-  const filteredInvestigations = useMemo(() => {
-    if (!searchQuery.trim()) return investigations;
-    const q = searchQuery.toLowerCase();
-    return investigations.filter(
-      (inv) =>
-        inv.title.toLowerCase().includes(q) ||
-        inv.record_id.toLowerCase().includes(q),
-    );
-  }, [investigations, searchQuery]);
-
-  // Counts by status
-  const allCount = data?.meta.total ?? 0;
-  const activeCount = investigations.filter(
-    (i) => i.status === "active",
-  ).length;
-  const closedCount = investigations.filter(
-    (i) => i.status === "closed",
-  ).length;
-  const archivedCount = investigations.filter(
-    (i) => i.status === "archived",
-  ).length;
+  // Use global status counts from backend
+  const allCount = Object.values(statusCounts).reduce((a, b) => a + b, 0);
+  const activeCount = statusCounts["active"] ?? 0;
+  const closedCount = statusCounts["closed"] ?? 0;
+  const archivedCount = statusCounts["archived"] ?? 0;
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!recordId || !title) return;
+    if (!/^INVESTIGATION-\d+$/.test(recordId)) return;
     await createMutation.mutateAsync({
       record_id: recordId,
       title,
@@ -183,7 +180,7 @@ export function InvestigationsListPage() {
             </p>
           </div>
         </div>
-      ) : filteredInvestigations.length === 0 ? (
+      ) : investigations.length === 0 ? (
         <div className="card">
           <div className="flex flex-col items-center justify-center py-16">
             <div className="rounded-xl bg-secondary-100 dark:bg-secondary-800 p-4">
@@ -215,7 +212,7 @@ export function InvestigationsListPage() {
               </tr>
             </thead>
             <tbody className="table-body">
-              {filteredInvestigations.map((inv) => (
+              {investigations.map((inv) => (
                 <tr key={inv.id} className="table-row group">
                   <td className="table-cell">
                     <Link
@@ -279,7 +276,7 @@ export function InvestigationsListPage() {
           <p className="text-sm text-secondary-500 dark:text-secondary-400">
             Showing{" "}
             <span className="font-medium text-secondary-700 dark:text-secondary-300">
-              {filteredInvestigations.length}
+              {investigations.length}
             </span>{" "}
             of{" "}
             <span className="font-medium text-secondary-700 dark:text-secondary-300">
@@ -359,7 +356,8 @@ export function InvestigationsListPage() {
               Cancel
             </Button>
             <Button
-              onClick={handleCreate}
+              type="submit"
+              form="create-investigation-form"
               loading={createMutation.isPending}
               disabled={!recordId || !title}
               icon={<Plus className="h-4 w-4" />}
@@ -422,7 +420,9 @@ export function InvestigationsListPage() {
               )}
             >
               <AlertCircle className="h-4 w-4 shrink-0" />
-              Failed to create investigation. Please try again.
+              {(createMutation.error as { response?: { data?: { detail?: string } } })
+                ?.response?.data?.detail ||
+                "Failed to create investigation. Please try again."}
             </div>
           )}
         </form>

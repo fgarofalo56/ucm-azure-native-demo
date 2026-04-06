@@ -208,8 +208,8 @@ export function DashboardPage() {
               Documents by Investigation
             </h3>
             {barChartData.length > 0 ? (
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%" debounce={50}>
+              <div className="h-72 min-h-[288px]">
+                <ResponsiveContainer width="100%" height="100%" debounce={50} minWidth={0} minHeight={0}>
                   <BarChart
                     data={barChartData}
                     margin={{ top: 5, right: 20, left: 0, bottom: 60 }}
@@ -260,8 +260,8 @@ export function DashboardPage() {
               Document Status Distribution
             </h3>
             {pieChartData.length > 0 ? (
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%" debounce={50}>
+              <div className="h-72 min-h-[288px]">
+                <ResponsiveContainer width="100%" height="100%" debounce={50} minWidth={0} minHeight={0}>
                   <PieChart>
                     <Pie
                       data={pieChartData}

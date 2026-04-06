@@ -6,10 +6,10 @@ import {
   updateInvestigation,
 } from "../api/investigations";
 
-export function useInvestigations(status?: string, page = 1) {
+export function useInvestigations(status?: string, page = 1, search?: string) {
   return useQuery({
-    queryKey: ["investigations", status, page],
-    queryFn: () => listInvestigations(status, page),
+    queryKey: ["investigations", status, page, search],
+    queryFn: () => listInvestigations(status, page, 20, search),
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

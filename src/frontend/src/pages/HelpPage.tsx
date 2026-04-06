@@ -144,7 +144,7 @@ export function HelpPage() {
         <div className="space-y-2">
           {faqs.map((faq, idx) => (
             <div
-              key={idx}
+              key={faq.question}
               className={clsx(
                 "rounded-xl border transition-colors",
                 "border-secondary-200 dark:border-secondary-700",
