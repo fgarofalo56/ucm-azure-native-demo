@@ -132,6 +132,7 @@ The backend is a FastAPI application serving the REST API for document managemen
 
 - **Use `async`/`await` for I/O-bound operations.** Database queries, Azure SDK calls, and HTTP requests to other services should all use async patterns. FastAPI is built on Starlette's async runtime; blocking the event loop degrades throughput for all users.
 - **Stream large files.** Never load an entire file into memory for upload or download. Use streaming upload with `azure-storage-blob`'s `upload_blob` (which accepts streams) and streaming download with `StorageStreamDownloader`. This keeps memory usage constant regardless of file size.
+- **Rate limiting.** The API uses slowapi middleware to enforce 200 requests/minute per client IP. The middleware is X-Forwarded-For aware for correct behavior behind reverse proxies (Azure Front Door, Container Apps ingress). Configure per-endpoint overrides via the `@limiter.limit()` decorator.
 
 ### 🔒 Data Integrity
 
@@ -163,6 +164,12 @@ The frontend is a React single-page application built with TypeScript, served th
 
 - **TanStack React Query for server state.** All API data fetching, caching, and synchronization should go through React Query. It handles loading states, error states, caching, background refetching, and optimistic updates out of the box.
 - **Handle loading and error states explicitly.** Every component that fetches data must render appropriate loading indicators and error messages. Never show a blank screen or stale data without indication.
+
+### 🛡️ Error Handling and User Feedback
+
+- **ErrorBoundary for graceful crash recovery.** The app wraps all routes with an `ErrorBoundary` component that catches rendering errors and displays a styled fallback UI with a "Try again" button. This prevents white-screen crashes from reaching the user.
+- **Toast notifications for user actions.** Use the `useToast()` hook from `ToastContext` for success, error, and info notifications. Toasts auto-dismiss after 5 seconds and support manual dismissal. Use `role="alert"` for screen reader accessibility.
+- **Debounce search input.** The `useDebounce` hook prevents excessive API calls during search-as-you-type. Use a 300-500ms delay for text inputs that trigger API requests.
 
 ### 💡 File Handling
 

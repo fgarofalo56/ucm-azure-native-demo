@@ -56,6 +56,7 @@
 |-------|---------|
 | Public entry point | Azure Front Door (sole ingress) |
 | WAF Policy | OWASP 3.2 + Bot Protection + Rate Limiting |
+| Application rate limiting | slowapi middleware (200 req/min per client IP, X-Forwarded-For aware) |
 | Compute isolation | VNet integration for App Service and Functions |
 | Data isolation | Private Endpoints for Blob Storage, SQL, Key Vault, Event Hub |
 | Inter-subnet control | NSGs restricting traffic between subnets |
