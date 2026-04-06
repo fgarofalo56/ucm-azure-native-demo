@@ -5,6 +5,7 @@ import {
   UnauthenticatedTemplate,
 } from "@azure/msal-react";
 import { AppShell } from "./components/layout/AppShell";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useAuth } from "./auth/useAuth";
 import { Shield, Loader2 } from "lucide-react";
 import { clsx } from "clsx";
@@ -62,27 +63,29 @@ export function App() {
     <>
       <AuthenticatedTemplate>
         <AppShell>
-          <Suspense fallback={<PageSpinner />}>
-            <Routes>
-              <Route path="/" element={<DashboardPage />} />
-              <Route
-                path="/investigations"
-                element={<InvestigationsListPage />}
-              />
-              <Route
-                path="/investigations/:id"
-                element={<InvestigationPage />}
-              />
-              <Route path="/documents" element={<DocumentsPage />} />
-              <Route path="/audit" element={<AuditLogPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/search" element={<SearchPage />} />
-              <Route path="/explorer" element={<FileExplorerPage />} />
-              <Route path="/admin" element={<AdminPage />} />
-              <Route path="/help" element={<HelpPage />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<PageSpinner />}>
+              <Routes>
+                <Route path="/" element={<DashboardPage />} />
+                <Route
+                  path="/investigations"
+                  element={<InvestigationsListPage />}
+                />
+                <Route
+                  path="/investigations/:id"
+                  element={<InvestigationPage />}
+                />
+                <Route path="/documents" element={<DocumentsPage />} />
+                <Route path="/audit" element={<AuditLogPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/search" element={<SearchPage />} />
+                <Route path="/explorer" element={<FileExplorerPage />} />
+                <Route path="/admin" element={<AdminPage />} />
+                <Route path="/help" element={<HelpPage />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </AppShell>
       </AuthenticatedTemplate>
 

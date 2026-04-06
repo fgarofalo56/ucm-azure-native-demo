@@ -17,6 +17,7 @@ import { clsx } from "clsx";
 import { useAuth } from "../../auth/useAuth";
 import { useTheme } from "../../contexts/ThemeContext";
 import { usePermissions } from "../../hooks/usePermissions";
+import { useDebounce } from "../../hooks/useDebounce";
 
 interface HeaderProps {
   onMenuToggle: () => void;
@@ -36,7 +37,15 @@ export function Header({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const debouncedQuery = useDebounce(searchQuery, 500);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Debounced search-as-you-type navigation
+  useEffect(() => {
+    if (debouncedQuery.trim().length >= 2) {
+      navigate(`/search?q=${encodeURIComponent(debouncedQuery.trim())}`);
+    }
+  }, [debouncedQuery, navigate]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {

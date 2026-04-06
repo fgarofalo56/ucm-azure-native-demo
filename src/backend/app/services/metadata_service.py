@@ -135,6 +135,25 @@ class MetadataService:
         await self._session.execute(update(Investigation).where(Investigation.id == investigation_id).values(**values))
         return await self.get_investigation(investigation_id)
 
+    async def soft_delete_investigation(self, investigation_id: UUID, user_id: str) -> None:
+        """Soft-delete an investigation and all its documents."""
+        investigation = await self.get_investigation(investigation_id)
+        if not investigation:
+            return
+
+        now = datetime.utcnow()
+        investigation.status = InvestigationStatus.ARCHIVED
+        investigation.updated_at = now
+
+        # Soft-delete all documents
+        for doc in investigation.documents:
+            if not doc.is_deleted:
+                doc.is_deleted = True
+                doc.deleted_at = now
+                doc.deleted_by = user_id
+
+        await self._session.flush()
+
     # ========================================================================
     # Document operations (logical)
     # ========================================================================

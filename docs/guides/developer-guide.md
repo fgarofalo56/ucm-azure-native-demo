@@ -123,18 +123,19 @@ server: {
 📁 src/backend/
 ├── 📁 app/
 │   ├── 📄 main.py              # FastAPI application entry point, lifespan, middleware
-│   ├── 📄 config.py            # Pydantic-settings configuration (env vars)
+│   ├── 📄 config.py            # Pydantic-settings configuration (env vars + validators)
 │   ├── 📄 dependencies.py      # Dependency injection: Azure SDK clients (Blob, KeyVault)
 │   ├── 📁 api/v1/
 │   │   ├── 📄 router.py        # Aggregates all v1 routers
 │   │   ├── 📄 health.py        # Health and readiness probe endpoints
 │   │   ├── 📄 documents.py     # Document CRUD: upload, download, PDF, versions, delete
-│   │   ├── 📄 investigations.py  # Investigation CRUD endpoints
+│   │   ├── 📄 investigations.py  # Investigation CRUD + soft-delete endpoints
+│   │   ├── 📄 search.py        # Global search across investigations and documents (paginated)
 │   │   ├── 📄 pdf_merge.py     # PDF merge endpoint
 │   │   └── 📄 audit.py         # Audit log query endpoint
 │   ├── 📁 services/
 │   │   ├── 📄 blob_service.py    # Azure Blob Storage operations
-│   │   ├── 📄 metadata_service.py  # Database CRUD for metadata
+│   │   ├── 📄 metadata_service.py  # Database CRUD for metadata (incl. soft-delete)
 │   │   ├── 📄 audit_service.py   # NIST 800-53 AU-2/AU-3 audit logging
 │   │   └── 📄 pdf_merge_service.py # Server-side PDF merge using pypdf
 │   ├── 📁 models/
@@ -148,11 +149,13 @@ server: {
 │   │   ├── 📄 auth.py            # Entra ID JWT validation, UserClaims, require_role
 │   │   ├── 📄 audit.py           # NIST-compliant audit event middleware
 │   │   ├── 📄 correlation.py     # X-Correlation-ID propagation
-│   │   └── 📄 logging.py         # structlog request/response logging
+│   │   ├── 📄 logging.py         # structlog request/response logging
+│   │   └── 📄 rate_limit.py      # slowapi rate limiting (200 req/min, X-Forwarded-For)
 │   └── 📁 telemetry/
 │       └── 📄 setup.py           # OpenTelemetry + Azure Monitor instrumentation
 ├── 📄 pyproject.toml         # Project metadata, dependencies, tool configuration
-└── 📄 Dockerfile             # Production container image
+├── 📄 Dockerfile             # Multi-stage production container (non-root user)
+└── 📄 .dockerignore          # Docker build exclusions
 ```
 
 ### 💡 Adding a New API Endpoint
@@ -321,8 +324,8 @@ The `AuditMiddleware` in `app/middleware/audit.py` automatically logs audit even
 ```
 📁 src/frontend/
 ├── 📁 src/
-│   ├── 📄 main.tsx             # Application entry point, MSAL provider setup
-│   ├── 📄 App.tsx              # Root component with routes, auth gate
+│   ├── 📄 main.tsx             # Application entry point, MSAL + Toast providers
+│   ├── 📄 App.tsx              # Root component with routes, auth gate, ErrorBoundary
 │   ├── 📁 auth/
 │   │   ├── 📄 AuthProvider.tsx   # MSAL React auth provider wrapper
 │   │   ├── 📄 msal-config.ts     # MSAL configuration
@@ -333,10 +336,15 @@ The `AuditMiddleware` in `app/middleware/audit.py` automatically logs audit even
 │   │   ├── 📄 investigations.ts  # Investigation API calls
 │   │   └── 📄 types.ts           # TypeScript API response types
 │   ├── 📁 components/
+│   │   ├── 📄 ErrorBoundary.tsx   # React error boundary with styled fallback
 │   │   ├── 📁 documents/         # DocumentList, DocumentUpload, PdfMerge, etc.
-│   │   ├── 📁 layout/            # AppShell, Header, Sidebar
-│   │   └── 📁 ui/                # Button, FileDropzone, Modal, StatusBadge, Table
+│   │   ├── 📁 layout/            # AppShell, Header (debounced search), Sidebar
+│   │   └── 📁 ui/                # Button, FileDropzone, Modal (focus trap + ARIA), StatusBadge, Table
+│   ├── 📁 contexts/
+│   │   ├── 📄 ThemeContext.tsx    # Dark/light theme provider
+│   │   └── 📄 ToastContext.tsx    # Global toast notifications (success/error/info)
 │   ├── 📁 hooks/
+│   │   ├── 📄 useDebounce.ts     # Generic debounce hook (configurable delay)
 │   │   ├── 📄 useDocuments.ts    # React Query hooks for documents
 │   │   ├── 📄 useInvestigations.ts  # React Query hooks for investigations
 │   │   └── 📄 usePdfMerge.ts     # React Query hook for PDF merge
@@ -583,8 +591,14 @@ alembic -c app/db/migrations/alembic.ini downgrade <revision_id>
 │   ├── 📁 unit/
 │   │   ├── 📄 test_audit_service.py
 │   │   ├── 📄 test_blob_service.py
+│   │   ├── 📄 test_config.py             # Settings validation (21 tests)
+│   │   ├── 📄 test_enums.py              # Enum values (21 tests)
 │   │   ├── 📄 test_metadata_service.py
-│   │   └── 📄 test_pdf_merge_service.py
+│   │   ├── 📄 test_pdf_merge_service.py
+│   │   ├── 📄 test_rate_limit.py          # Rate limiting middleware (8 tests)
+│   │   ├── 📄 test_rbac_service.py        # RBAC service (12 tests)
+│   │   ├── 📄 test_schemas.py             # Pydantic schema validation (42 tests)
+│   │   └── 📄 test_settings_service.py    # Settings service (17 tests)
 │   └── 📁 integration/
 │       ├── 📄 test_api_audit.py
 │       ├── 📄 test_api_documents.py
@@ -593,7 +607,15 @@ alembic -c app/db/migrations/alembic.ini downgrade <revision_id>
 │   ├── 📁 components/
 │   │   ├── 📄 DocumentList.test.tsx
 │   │   ├── 📄 DocumentUpload.test.tsx
-│   │   └── 📄 PdfMerge.test.tsx
+│   │   ├── 📄 ErrorBoundary.test.tsx      # Error boundary (8 tests)
+│   │   ├── 📄 FileExplorerPage.test.tsx
+│   │   ├── 📄 InvestigationPicker.test.tsx
+│   │   ├── 📄 InvestigationsListPage.test.tsx
+│   │   ├── 📄 PdfMerge.test.tsx
+│   │   ├── 📄 SearchPage.test.tsx
+│   │   └── 📄 ToastContext.test.tsx       # Toast notifications (10 tests)
+│   ├── 📁 hooks/
+│   │   └── 📄 useDebounce.test.ts         # Debounce hook (8 tests)
 │   └── 📁 e2e/
 │       └── 📄 document-workflow.spec.ts
 ├── 📁 functions/

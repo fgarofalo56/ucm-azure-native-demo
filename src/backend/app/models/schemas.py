@@ -274,6 +274,8 @@ class SearchResponse(BaseModel):
     query: str
     results: list[SearchResultItem]
     total: int
+    page: int = 1
+    page_size: int = 20
 
 
 # ============================================================================

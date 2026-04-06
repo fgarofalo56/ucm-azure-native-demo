@@ -7,11 +7,14 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api.v1.router import api_v1_router
 from app.config import settings
 from app.middleware.correlation import CorrelationIdMiddleware
 from app.middleware.logging import RequestLoggingMiddleware
+from app.middleware.rate_limit import limiter
 from app.telemetry.setup import configure_telemetry
 
 logger = structlog.get_logger()
@@ -39,6 +42,10 @@ app = FastAPI(
     openapi_url="/api/openapi.json" if not settings.is_production else None,
     lifespan=lifespan,
 )
+
+# Rate limiting setup
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
 
 # Middleware (order matters - last added = first executed)
 app.add_middleware(RequestLoggingMiddleware)

@@ -73,6 +73,7 @@ flowchart LR
 | **Frontend** | React 18 + TypeScript + Vite | Static Web App (`swa-assurancenet-dev`) | `src/frontend/` |
 | **Backend API** | Python 3.11+ FastAPI | Container App (`ca-api-assurancenet-dev`) | `src/backend/` |
 | **PDF Pipeline** | OpenSource (Pillow+fpdf2) or Aspose (licensed) | In-process in backend (admin-configurable) | `src/backend/app/services/` |
+| **Rate Limiting** | slowapi (200 req/min, X-Forwarded-For aware) | In-process middleware | `src/backend/app/middleware/` |
 | **Storage** | Azure Blob Storage (versioned paths) | `stassurancenetdev` + staging container | Backend services |
 | **Database** | Azure SQL (Document + DocumentVersion + RBAC) | `sql-assurancenet-dev` / `sqldb-assurancenet-dev` | `src/backend/app/db/` |
 | **Auth** | Microsoft Entra ID (MSAL) | App Registrations (API + SPA) | Both frontend and backend |
@@ -154,6 +155,7 @@ ucm-azure-native-demo/
 │   ├── 📁 frontend/           # React component + E2E tests
 │   └── 📁 infra/              # Bicep validation tests
 ├── 📄 CLAUDE.md               # Claude Code project instructions
+├── 📄 CHANGELOG.md            # Version history and changes
 ├── 📄 CONTRIBUTING.md         # Contribution guidelines
 ├── 📄 SECURITY.md             # Security policy
 └── 📄 README.md               # This file
@@ -282,6 +284,7 @@ az deployment sub create --location eastus \
 | `POST` | `/api/v1/investigations/` | `investigations.create` | Create investigation |
 | `GET` | `/api/v1/investigations/{id}` | `investigations.read` | Get investigation details |
 | `PATCH` | `/api/v1/investigations/{id}` | `investigations.update` | Update investigation |
+| `DELETE` | `/api/v1/investigations/{id}` | `investigations.delete` | Soft-delete investigation + documents |
 | `GET` | `/api/v1/investigations/{id}/documents` | `documents.read` | List documents (latest versions only) |
 | `POST` | `/api/v1/investigations/{recordId}/merge-pdf` | `documents.merge` | Merge PDFs (type-based ordering) |
 
@@ -307,7 +310,7 @@ az deployment sub create --location eastus \
 | `GET` | `/api/v1/health` | None | Liveness probe |
 | `GET` | `/api/v1/health/ready` | None | Readiness probe (DB + storage) |
 | `POST` | `/api/v1/audit/logs` | `audit.read` | Query audit logs |
-| `GET` | `/api/v1/search/?q=` | Authenticated | Search investigations and documents |
+| `GET` | `/api/v1/search/?q=&page=&page_size=` | Authenticated | Search investigations and documents (paginated) |
 | `GET` | `/api/v1/explorer/browse` | `documents.versions` | Browse blob storage (admin only) |
 
 ---
@@ -342,4 +345,4 @@ MIT
 
 ---
 
-*Last updated: 2026-03-19*
+*Last updated: 2026-04-06*
