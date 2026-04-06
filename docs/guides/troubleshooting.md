@@ -6,7 +6,7 @@
 
 This guide covers common issues across the AssuranceNet Document Management System, organized by functional area. Each issue includes symptoms, root causes, diagnostic steps, and solutions.
 
-**System components**: React SPA (Static Web Apps) / FastAPI backend (App Service) / Azure Functions (PDF conversion) / Gotenberg (Container Apps) / Azure Blob Storage / Azure SQL / Entra ID / Event Grid / Front Door + WAF / Application Insights / Log Analytics / Splunk via Event Hub.
+**System components**: React SPA (Static Web Apps) / FastAPI backend (Container Apps) / Azure Blob Storage / Azure SQL / Entra ID / Front Door + WAF / Application Insights / Log Analytics / Splunk via Event Hub. PDF conversion runs in-process in the FastAPI backend. (Optional: Azure Functions for PDF conversion / Gotenberg Container App for Office document conversion -- see notes in Section 3.)
 
 > [!TIP]
 > Start with the [Quick Reference: Diagnostic Commands](#-quick-reference-diagnostic-commands) section at the bottom for a fast overview of health checks, KQL queries, and CLI commands.
@@ -377,9 +377,10 @@ AppExceptions
 2. **Verify the document exists in the database:**
    ```sql
    -- Run against Azure SQL (via SSMS, Azure Data Studio, or az sql query)
-   SELECT id, file_id, original_filename, created_at, pdf_conversion_status
-   FROM documents
-   WHERE file_id = '<file_id_from_upload_response>'
+   SELECT dv.id, dv.original_filename, dv.version_number, dv.pdf_conversion_status
+   FROM document_versions dv
+   JOIN documents d ON d.id = dv.document_id
+   WHERE dv.id = '<version_id>'
    ```
 
 3. **Check the frontend cache invalidation.** After a successful upload, the frontend should invalidate the document list query. Verify the React Query `invalidateQueries` call is working correctly.
@@ -390,7 +391,12 @@ AppExceptions
 
 ## 📄 3. PDF Conversion Issues
 
+> [!NOTE]
+> In the default architecture, PDF conversion runs **in-process** in the FastAPI backend (Container App). The Azure Functions (`func-assurancenet-pdf-dev`) and Gotenberg container (`ca-gotenberg-dev`) described in this section are **optional components** that are not deployed by default. If you are using the in-process conversion pipeline, sections 3.1, 3.3, 3.4, and 3.5 may not apply. Section 3.2 still applies for diagnosing conversion failures in the backend logs.
+
 ### 3.1 Document stuck on "pending" conversion
+
+> **Note:** This section applies only if you have deployed the optional Azure Functions + Event Grid pipeline for PDF conversion. In the default architecture, PDF conversion runs in-process in the backend API and this event-driven flow is not used.
 
 **Symptoms:**
 - After uploading a non-PDF document, the `pdf_conversion_status` remains `"pending"` indefinitely.
@@ -479,14 +485,24 @@ AzureMetrics
 
 **Causes:**
 - The file format variant is not supported by the conversion service (e.g., password-protected Office docs, corrupted files, uncommon image formats).
-- Gotenberg timed out processing a very large or complex Office document (default timeout: 120 seconds).
+- The conversion engine (Aspose in-process, or Gotenberg if deployed) timed out processing a very large or complex Office document.
 - The original file is corrupted or zero-length.
-- The Function App ran out of memory processing a large file.
+- The backend container ran out of memory processing a large file (or the Function App, if using the optional pipeline).
 
 **Diagnostic steps:**
 
 ```kql
-// KQL: Check Function App error logs
+// KQL: Check backend API conversion error logs (default in-process pipeline)
+AppTraces
+| where TimeGenerated > ago(4h)
+| where SeverityLevel >= 3 // Warning and above
+| where Message contains "pdf" or Message contains "conversion"
+| project TimeGenerated, SeverityLevel, Message, Properties
+| order by TimeGenerated desc
+```
+
+```kql
+// KQL: Check Function App error logs (optional pipeline only)
 FunctionAppLogs
 | where TimeGenerated > ago(4h)
 | where Level == "Error" or Level == "Warning"
@@ -505,30 +521,32 @@ AppMetrics
 ```
 
 ```bash
-# Check Gotenberg health directly (from Function App or within VNet)
-curl -s http://ca-gotenberg-dev:3000/health
+# Check Gotenberg health directly (only if the optional Gotenberg container is deployed)
+# curl -s http://ca-gotenberg-dev:3000/health
 ```
 
 **Solutions:**
 
-1. **Check the Function App logs** with the KQL query above. The error message will indicate whether the failure was in file download, conversion, or PDF upload.
+1. **Check the backend API logs** with the KQL query above. The error message will indicate whether the failure was in file download, conversion, or PDF upload. If using the optional Function App pipeline, check `FunctionAppLogs` instead.
 
-2. **Verify Gotenberg is healthy** (see [Section 3.3](#33-gotenberg-container-not-responding)).
+2. **If using the optional Gotenberg container**, verify it is healthy (see [Section 3.3](#33-gotenberg-container-not-responding)).
 
-3. **Try re-uploading the file.** Delete the failed document and upload again. Transient network issues between Functions and Gotenberg can cause one-time failures.
+3. **Try re-uploading the file.** Delete the failed document and upload again. Transient issues can cause one-time failures.
 
 4. **Check file compatibility.** The conversion pipeline supports:
-   - **Office documents** (DOCX, XLSX, PPTX) via Gotenberg/LibreOffice
+   - **Office documents** (DOCX, XLSX, PPTX) via Aspose in-process engine (or Gotenberg/LibreOffice if deployed)
    - **Images** (JPEG, PNG, TIFF, BMP) via Pillow + img2pdf
    - **Text files** (TXT, RTF) via fpdf2
 
    Password-protected files, macro-heavy spreadsheets, and files with extensive embedded OLE objects may fail.
 
-5. **Check file size.** Very large files (> 100 MB) may cause the Function App to run out of memory. Consider the Function App's memory allocation and increase if needed.
+5. **Check file size.** Very large files (> 100 MB) may cause the backend container to run out of memory. Consider the container's memory allocation and increase if needed.
 
 ---
 
 ### 3.3 Gotenberg container not responding
+
+> **Note:** This section applies only if you have deployed the optional Gotenberg container (`ca-gotenberg-dev`) for Office document conversion. In the default architecture, PDF conversion runs in-process in the backend API using the Aspose engine, and no separate Gotenberg container is needed.
 
 **Symptoms:**
 - Office document (DOCX, XLSX, PPTX) conversions fail consistently.
@@ -606,6 +624,8 @@ ContainerAppSystemLogs_CL
 
 ### 3.4 Event Grid not triggering Functions
 
+> **Note:** This section applies only if you have deployed the optional Azure Functions + Event Grid pipeline for PDF conversion. In the default architecture, PDF conversion runs synchronously in the backend API and Event Grid is not used for this purpose.
+
 **Symptoms:**
 - No conversion attempts at all after uploading documents.
 - Function App logs show zero invocations.
@@ -613,7 +633,7 @@ ContainerAppSystemLogs_CL
 
 **Causes:**
 - The Event Grid system topic does not exist on the storage account.
-- The event subscription filter is wrong (path filter does not match the actual blob path structure `INVESTIGATION-{RecordId}/{FileId}/blob/{filename}`).
+- The event subscription filter is wrong (path filter does not match the actual blob path structure `{RecordId}/{DocumentId}/original/v{N}/{filename}`).
 - The Function App is stopped or the Event Grid trigger function is disabled.
 - The Function App's Event Grid endpoint is not reachable (VNet/NSG issue).
 
@@ -659,6 +679,8 @@ az monitor metrics list \
 
 ### 3.5 Conversion timeout
 
+> **Note:** This section applies only if you have deployed the optional Gotenberg container and Azure Functions pipeline for PDF conversion. In the default architecture, PDF conversion runs in-process in the backend API. For in-process timeout issues, check the backend container's request timeout and memory allocation instead.
+
 **Symptoms:**
 - Large or complex Office documents fail with a timeout error.
 - Function App logs show `httpx.ReadTimeout` or `httpcore.ReadTimeout` after 120 seconds.
@@ -690,6 +712,8 @@ az monitor metrics list \
 
 4. **Split large files** before uploading. For example, split a 200-page Word document into smaller sections.
 
+> **For the in-process pipeline:** If conversion times out in the backend API, increase the backend Container App's request timeout and ensure adequate memory and CPU are allocated to handle large file conversions.
+
 ---
 
 ## 🔀 4. PDF Merge Issues
@@ -701,19 +725,19 @@ az monitor metrics list \
 - Error indicates too few files provided.
 
 **Causes:**
-- The `file_ids` array in the `PdfMergeRequest` body contains fewer than 2 entries.
+- The `document_ids` array in the `PdfMergeRequest` body contains fewer than 2 entries.
 - The frontend is not correctly collecting selected document IDs.
 
 **Solutions:**
 
 1. **Select at least 2 documents** with completed PDF conversion before attempting a merge.
 
-2. **Verify all selected documents have PDF available.** Documents with `pdf_conversion_status` of `"pending"` or `"failed"` cannot be included in a merge. The API will return `400` with detail: `"PDF not available for {file_id}. Status: {status}"`.
+2. **Verify all selected documents have PDF available.** Documents with `pdf_conversion_status` of `"pending"` or `"failed"` cannot be included in a merge. The API will return `400` with detail: `"PDF not available for {document_id}. Status: {status}"`.
 
 3. **Check the request payload** in the browser DevTools Network tab. The body should be:
    ```json
    {
-     "file_ids": ["file-id-1", "file-id-2", "..."]
+     "document_ids": ["doc-id-1", "doc-id-2", "..."]
    }
    ```
 
@@ -776,7 +800,7 @@ AppTraces
 **Diagnostic steps:**
 
 1. Download each individual PDF and try opening it separately to identify which one is corrupted.
-2. Check if the corrupted PDF was produced by the conversion pipeline (possible Gotenberg issue) or was an original upload.
+2. Check if the corrupted PDF was produced by the conversion pipeline (possible conversion engine issue) or was an original upload.
 
 **Solutions:**
 
@@ -786,10 +810,12 @@ AppTraces
 
 3. **Verify source file integrity** by comparing checksums:
    ```sql
-   SELECT file_id, original_filename, checksum_sha256, pdf_conversion_status, pdf_path
-   FROM documents
-   WHERE investigation_id = '<investigation_id>'
-   AND pdf_conversion_status IN ('completed', 'not_required')
+   SELECT dv.original_filename, dv.checksum, dv.blob_path_pdf, dv.version_number, dv.pdf_conversion_status
+   FROM document_versions dv
+   JOIN documents d ON d.id = dv.document_id
+   WHERE d.investigation_id = '<investigation_id>'
+   AND dv.is_latest = 1
+   AND dv.pdf_conversion_status IN ('completed', 'not_required')
    ```
 
 ---
@@ -922,7 +948,7 @@ alembic history --verbose
 - The readiness endpoint is slow to respond.
 
 **Causes:**
-- Missing indexes on frequently queried columns (e.g., `investigation_id`, `file_id`, `record_id`).
+- Missing indexes on frequently queried columns (e.g., `investigation_id`, `document_id`, `record_id`).
 - DTU (Database Transaction Unit) exhaustion on the Azure SQL tier.
 - Large result sets being returned without pagination.
 - Lock contention from concurrent writes (bulk uploads).
@@ -1007,7 +1033,7 @@ az storage blob show \
 az storage blob list \
   --account-name <STORAGE_ACCOUNT_NAME> \
   --container-name assurancenet-documents \
-  --prefix "<record_id>/<file_id>/" \
+  --prefix "<record_id>/<document_id>/" \
   --auth-mode login \
   --output table
 
@@ -1015,7 +1041,7 @@ az storage blob list \
 az storage blob list \
   --account-name <STORAGE_ACCOUNT_NAME> \
   --container-name assurancenet-documents \
-  --prefix "<record_id>/<file_id>/" \
+  --prefix "<record_id>/<document_id>/" \
   --include d \
   --auth-mode login \
   --output table
@@ -1023,14 +1049,16 @@ az storage blob list \
 
 ```sql
 -- Check the stored blob path in the database
-SELECT file_id, blob_path, pdf_path, blob_version_id, original_filename
-FROM documents
-WHERE id = '<document_id>'
+SELECT dv.original_filename, dv.blob_path_original, dv.blob_path_pdf, dv.checksum, dv.version_number
+FROM document_versions dv
+JOIN documents d ON d.id = dv.document_id
+WHERE d.id = '<document_id>'
+AND dv.is_latest = 1
 ```
 
 **Solutions:**
 
-1. **Verify the blob path** stored in the database matches the actual blob path format: `INVESTIGATION-{RecordId}/{FileId}/blob/{filename}`.
+1. **Verify the blob path** stored in the database matches the actual blob path format: `{RecordId}/{DocumentId}/original/v{N}/{filename}`.
 
 2. **Check soft-delete.** If soft-delete is enabled on the storage account, the blob may be recoverable:
    ```bash
@@ -1046,7 +1074,7 @@ WHERE id = '<document_id>'
    az storage blob list \
      --account-name <STORAGE_ACCOUNT_NAME> \
      --container-name assurancenet-documents \
-     --prefix "<record_id>/<file_id>/" \
+     --prefix "<record_id>/<document_id>/" \
      --include v \
      --auth-mode login \
      --output table
@@ -1058,7 +1086,7 @@ WHERE id = '<document_id>'
 
 **Symptoms:**
 - Storage operations fail with `AuthorizationPermissionMismatch` (HTTP 403).
-- The error occurs for the API backend or the Function App when trying to read, write, or list blobs.
+- The error occurs for the API backend (or the Function App, if using the optional pipeline) when trying to read, write, or list blobs.
 
 **Causes:**
 - The Managed Identity is missing the `Storage Blob Data Contributor` role on the storage account.
@@ -1091,16 +1119,16 @@ az identity show --name mi-app-assurancenet-dev \
      --role "Storage Blob Data Contributor" \
      --scope /subscriptions/<SUB_ID>/resourceGroups/rg-assurancenet-data-dev/providers/Microsoft.Storage/storageAccounts/<STORAGE_NAME>
 
-   # For the Function App MI
-   az role assignment create \
-     --assignee <FUNC_MI_PRINCIPAL_ID> \
-     --role "Storage Blob Data Contributor" \
-     --scope /subscriptions/<SUB_ID>/resourceGroups/rg-assurancenet-data-dev/providers/Microsoft.Storage/storageAccounts/<STORAGE_NAME>
+   # For the Function App MI (only if using the optional pipeline)
+   # az role assignment create \
+   #   --assignee <FUNC_MI_PRINCIPAL_ID> \
+   #   --role "Storage Blob Data Contributor" \
+   #   --scope /subscriptions/<SUB_ID>/resourceGroups/rg-assurancenet-data-dev/providers/Microsoft.Storage/storageAccounts/<STORAGE_NAME>
    ```
 
 2. **Wait for propagation.** Azure RBAC role assignments can take up to 10 minutes to propagate. If you just assigned the role, wait and retry.
 
-3. **Verify the MI client ID** is correctly configured in the App Service or Function App settings (`AZURE_CLIENT_ID`).
+3. **Verify the MI client ID** is correctly configured in the Container App (or App Service / Function App) settings (`AZURE_CLIENT_ID`).
 
 ---
 
@@ -1150,14 +1178,14 @@ az storage blob list \
 ### 7.1 Resources can't communicate (Private Endpoints)
 
 **Symptoms:**
-- Timeouts between services (App Service to SQL, Functions to Storage, Functions to Gotenberg).
+- Timeouts between services (backend Container App to SQL, backend to Storage).
 - DNS resolution returns a public IP instead of a private IP for a PaaS service.
 - The readiness endpoint shows one or more dependencies as unhealthy.
 
 **Causes:**
 - Private DNS zones are not linked to the VNet.
 - NSG rules on subnets are blocking traffic between services.
-- VNet integration is not configured on the App Service or Function App.
+- VNet integration is not configured on the Container App (or App Service / Function App, if applicable).
 - The Private Endpoint is in a failed provisioning state.
 
 **Diagnostic steps:**
@@ -1207,7 +1235,7 @@ AzureNetworkAnalytics_CL
    | Key Vault | `privatelink.vaultcore.azure.net` |
    | Event Hub | `privatelink.servicebus.windows.net` |
 
-2. **Enable VNet integration** on App Service and Function App if not already configured:
+2. **Enable VNet integration** on the backend Container App (or App Service / Function App if applicable):
    ```bash
    az webapp vnet-integration add \
      --name app-assurancenet-api-dev \
@@ -1363,7 +1391,7 @@ az deployment sub validate --location eastus \
 - The Application Map is empty.
 
 **Causes:**
-- `APPLICATIONINSIGHTS_CONNECTION_STRING` environment variable is not set on the App Service or Function App.
+- `APPLICATIONINSIGHTS_CONNECTION_STRING` environment variable is not set on the backend Container App (or App Service / Function App, if applicable).
 - The OpenTelemetry SDK is not initialized (the `configure_telemetry()` function in `app/telemetry/setup.py` is not called or is failing silently).
 - Sampling is configured too aggressively, dropping most telemetry.
 - The Application Insights resource is in a different subscription or has ingestion disabled.
@@ -1906,8 +1934,8 @@ curl -s https://app-assurancenet-api-dev.azurewebsites.net/api/v1/health | pytho
 # Readiness check (database + storage)
 curl -s https://app-assurancenet-api-dev.azurewebsites.net/api/v1/health/ready | python3 -m json.tool
 
-# Gotenberg health (from within VNet or directly if accessible)
-curl -s http://ca-gotenberg-dev:3000/health
+# Gotenberg health (only if the optional Gotenberg container is deployed)
+# curl -s http://ca-gotenberg-dev:3000/health
 ```
 
 ### 🔍 KQL Queries for Common Investigations
@@ -1926,19 +1954,26 @@ AppRequests
 | summarize count(), avg(DurationMs), percentile(DurationMs, 95) by Name, ResultCode
 | order by count_ desc
 
-// Dependency failures (SQL, Storage, Gotenberg)
+// Dependency failures (SQL, Storage)
 AppDependencies
 | where Success == false
 | where TimeGenerated > ago(1h)
 | summarize count() by DependencyType, Name, ResultCode
 | order by count_ desc
 
-// PDF conversion tracking
-FunctionAppLogs
+// PDF conversion tracking (in-process pipeline -- uses backend AppTraces)
+AppTraces
 | where TimeGenerated > ago(4h)
-| where FunctionName == "pdf_converter"
-| project TimeGenerated, Level, Message
+| where Message contains "pdf" or Message contains "conversion"
+| project TimeGenerated, SeverityLevel, Message, Properties
 | order by TimeGenerated desc
+
+// PDF conversion tracking (optional Function App pipeline)
+// FunctionAppLogs
+// | where TimeGenerated > ago(4h)
+// | where FunctionName == "pdf_converter"
+// | project TimeGenerated, Level, Message
+// | order by TimeGenerated desc
 
 // Event Grid delivery tracking
 AzureMetrics
@@ -1961,11 +1996,14 @@ AzureDiagnostics
 # App Service status
 az webapp show --name app-assurancenet-api-dev --resource-group rg-assurancenet-app-dev --query "state" -o tsv
 
-# Function App status
-az functionapp show --name func-assurancenet-pdf-dev --resource-group rg-assurancenet-app-dev --query "state" -o tsv
+# Function App status (only if the optional Function App pipeline is deployed)
+# az functionapp show --name func-assurancenet-pdf-dev --resource-group rg-assurancenet-app-dev --query "state" -o tsv
 
-# Container App replica count
-az containerapp show --name ca-gotenberg-dev --resource-group rg-assurancenet-app-dev --query "properties.template.scale" -o json
+# Backend Container App replica count
+az containerapp show --name ca-api-assurancenet-dev --resource-group rg-assurancenet-app-dev --query "properties.template.scale" -o json
+
+# Gotenberg Container App replica count (only if deployed)
+# az containerapp show --name ca-gotenberg-dev --resource-group rg-assurancenet-app-dev --query "properties.template.scale" -o json
 
 # SQL DTU usage (last hour)
 az monitor metrics list \

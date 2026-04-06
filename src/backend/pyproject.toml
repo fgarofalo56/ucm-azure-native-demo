@@ -31,6 +31,8 @@ dependencies = [
     "python-multipart>=0.0.18",
     "httpx>=0.28.0",
     "python-jose[cryptography]>=3.3.0",
+    "Pillow>=10.0.0",
+    "fpdf2>=2.7.0",
 ]
 
 [project.optional-dependencies]
@@ -69,6 +71,9 @@ ignore = [
     "B008",  # Function call in default arg (FastAPI Query/Depends pattern)
     "S110",  # try-except-pass (used intentionally for optional features)
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"app/db/migrations/**" = ["E501", "F841"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]

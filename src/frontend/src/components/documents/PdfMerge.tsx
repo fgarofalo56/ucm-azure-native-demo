@@ -5,25 +5,25 @@ import { mergePdfs } from "../../api/documents";
 
 interface PdfMergeProps {
   recordId: string;
-  selectedFileIds: string[];
+  selectedDocumentIds: string[];
   onClear: () => void;
 }
 
 export function PdfMerge({
   recordId,
-  selectedFileIds,
+  selectedDocumentIds,
   onClear,
 }: PdfMergeProps) {
   const [merging, setMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleMerge = async () => {
-    if (selectedFileIds.length < 2) return;
+    if (selectedDocumentIds.length < 2) return;
     setMerging(true);
     setError(null);
 
     try {
-      const blob = await mergePdfs(recordId, selectedFileIds);
+      const blob = await mergePdfs(recordId, selectedDocumentIds);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -38,7 +38,7 @@ export function PdfMerge({
     }
   };
 
-  if (selectedFileIds.length === 0) return null;
+  if (selectedDocumentIds.length === 0) return null;
 
   return (
     <div
@@ -52,7 +52,7 @@ export function PdfMerge({
     >
       <Combine className="h-5 w-5 shrink-0" />
       <span className="text-sm font-medium">
-        {selectedFileIds.length} file{selectedFileIds.length !== 1 ? "s" : ""}{" "}
+        {selectedDocumentIds.length} document{selectedDocumentIds.length !== 1 ? "s" : ""}{" "}
         selected
       </span>
 
@@ -67,7 +67,7 @@ export function PdfMerge({
 
       <button
         onClick={handleMerge}
-        disabled={merging || selectedFileIds.length < 2}
+        disabled={merging || selectedDocumentIds.length < 2}
         className={clsx(
           "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium",
           "bg-white text-primary-700 shadow-sm",

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.models.enums import InvestigationStatus, PdfConversionStatus
+from app.models.enums import DocumentType, InvestigationStatus, PdfConversionStatus, ScanStatus
 
 # ============================================================================
 # Investigation Schemas
@@ -40,44 +40,116 @@ class InvestigationResponse(BaseModel):
 
 
 # ============================================================================
-# Document Schemas
+# Document Version Schemas (physical binary metadata)
+# ============================================================================
+
+
+class DocumentVersionResponse(BaseModel):
+    """Version details for a single physical binary."""
+
+    id: UUID
+    document_id: UUID
+    version_number: int
+    original_filename: str
+    mime_type: str | None
+    file_size_bytes: int
+    checksum: str
+    is_latest: bool
+    pdf_conversion_status: PdfConversionStatus
+    pdf_conversion_error: str | None = None
+    pdf_converted_at: datetime | None = None
+    scan_status: ScanStatus = ScanStatus.CLEAN
+    scanned_at: datetime | None = None
+    uploaded_by: str
+    uploaded_by_name: str | None
+    uploaded_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ============================================================================
+# Document Schemas (logical identity + latest version)
 # ============================================================================
 
 
 class DocumentResponse(BaseModel):
+    """Logical document with latest version metadata inlined."""
+
     id: UUID
     investigation_id: UUID
-    file_id: str
-    original_filename: str = Field(max_length=255)
-    content_type: str | None
-    file_size_bytes: int
-    pdf_conversion_status: PdfConversionStatus
-    pdf_conversion_error: str | None
-    pdf_converted_at: datetime | None
-    checksum_sha256: str
-    uploaded_by: str
-    uploaded_by_name: str | None
-    uploaded_at: datetime
+    document_type: DocumentType
+    title: str | None
+    created_by: str
+    created_by_name: str | None
+    created_at: datetime
     updated_at: datetime
+
+    # Latest version fields (inlined for convenience)
+    current_version_id: UUID | None = None
+    version_number: int | None = None
+    original_filename: str | None = None
+    mime_type: str | None = None
+    file_size_bytes: int | None = None
+    checksum: str | None = None
+    pdf_conversion_status: PdfConversionStatus | None = None
+    uploaded_by: str | None = None
+    uploaded_by_name: str | None = None
+    uploaded_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
 
 class DocumentUploadResponse(BaseModel):
-    id: UUID
-    file_id: str
+    """Response after uploading a document."""
+
+    document_id: UUID
+    version_id: UUID
+    version_number: int
     original_filename: str
     file_size_bytes: int
-    checksum_sha256: str
+    checksum: str
+    document_type: DocumentType
     pdf_conversion_status: PdfConversionStatus
     blob_path: str
 
 
-class DocumentVersionResponse(BaseModel):
-    version_id: str
-    last_modified: datetime
-    content_length: int
-    is_current: bool
+class DocumentCreateRequest(BaseModel):
+    """Request body for creating/uploading a document."""
+
+    document_type: DocumentType = DocumentType.OTHER
+    title: str | None = Field(None, max_length=500, pattern=r"^[^<>]*$")
+
+
+# ============================================================================
+# Admin Document Version Schemas
+# ============================================================================
+
+
+class AdminDocumentDetailResponse(BaseModel):
+    """Full document detail with all versions — admin only."""
+
+    id: UUID
+    investigation_id: UUID
+    document_type: DocumentType
+    title: str | None
+    created_by: str
+    created_by_name: str | None
+    created_at: datetime
+    updated_at: datetime
+    current_version_id: UUID | None
+    is_deleted: bool
+    versions: list[DocumentVersionResponse] = []
+
+    model_config = {"from_attributes": True}
+
+
+class RollbackResponse(BaseModel):
+    """Response after rolling back a document version."""
+
+    document_id: UUID
+    rolled_back_version: int
+    promoted_version: int
+    new_current_version_id: UUID
 
 
 # ============================================================================
@@ -86,17 +158,17 @@ class DocumentVersionResponse(BaseModel):
 
 
 class PdfMergeRequest(BaseModel):
-    file_ids: list[str] = Field(min_length=2, max_length=50)
+    document_ids: list[str] = Field(min_length=2, max_length=50)
 
-    @field_validator("file_ids")
+    @field_validator("document_ids")
     @classmethod
-    def validate_file_ids(cls, v: list[str]) -> list[str]:
+    def validate_document_ids(cls, v: list[str]) -> list[str]:
         import re
 
         uuid_re = re.compile(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$")
-        for fid in v:
-            if not uuid_re.match(fid):
-                raise ValueError(f"Invalid file ID format: {fid}")
+        for did in v:
+            if not uuid_re.match(did):
+                raise ValueError(f"Invalid document ID format: {did}")
         return v
 
 
@@ -130,11 +202,6 @@ class AuditLogQuery(BaseModel):
     end_date: datetime | None = None
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=50, ge=1, le=200)
-
-
-# ============================================================================
-# Common Schemas
-# ============================================================================
 
 
 # ============================================================================
@@ -236,7 +303,7 @@ class AddToInvestigationRequest(BaseModel):
 class AddToInvestigationResult(BaseModel):
     blob_path: str
     success: bool
-    file_id: str | None = None
+    document_id: str | None = None
     error: str | None = None
 
 
@@ -256,7 +323,7 @@ class CopyDocumentsRequest(BaseModel):
 class CopyDocumentResult(BaseModel):
     document_id: str
     success: bool
-    new_file_id: str | None = None
+    new_document_id: str | None = None
     error: str | None = None
 
 
@@ -276,7 +343,8 @@ class CopyDocumentsResponse(BaseModel):
 class BatchUploadResult(BaseModel):
     filename: str
     success: bool
-    file_id: str | None = None
+    document_id: str | None = None
+    version_id: str | None = None
     error: str | None = None
 
 

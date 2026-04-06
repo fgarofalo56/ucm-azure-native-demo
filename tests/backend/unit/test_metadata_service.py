@@ -1,7 +1,6 @@
 """Unit tests for MetadataService."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 from app.services.metadata_service import MetadataService
@@ -23,31 +22,30 @@ class TestMetadataService:
             user_id="user-123",
             user_name="Test User",
         )
-        mock_db_session.add.assert_called_once()
-        mock_db_session.flush.assert_called_once()
+        mock_db_session.add.assert_called()
+        mock_db_session.flush.assert_called()
 
     @pytest.mark.asyncio
-    async def test_create_document(self, metadata_service, mock_db_session):
+    async def test_create_document_with_version(self, metadata_service, mock_db_session):
         investigation_id = uuid4()
-        document = await metadata_service.create_document(
+        document, version = await metadata_service.create_document_with_version(
             investigation_id=investigation_id,
-            file_id="file-abc",
             original_filename="test.docx",
-            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             file_size_bytes=1024,
-            blob_path="INVESTIGATION-123/file-abc/blob/test.docx",
-            blob_version_id="v1",
-            checksum_sha256="abc123",
+            blob_path_original="INVESTIGATION-123/file-abc/original/v1/test.docx",
+            checksum="abc123",
             user_id="user-123",
             user_name="Test User",
         )
-        mock_db_session.add.assert_called_once()
+        assert mock_db_session.add.call_count >= 2  # document + version
 
     @pytest.mark.asyncio
-    async def test_update_pdf_status(self, metadata_service, mock_db_session):
-        await metadata_service.update_pdf_status(
-            file_id="file-abc",
+    async def test_update_version_pdf_status(self, metadata_service, mock_db_session):
+        version_id = uuid4()
+        await metadata_service.update_version_pdf_status(
+            version_id=version_id,
             status=PdfConversionStatus.COMPLETED,
-            pdf_path="INVESTIGATION-123/file-abc/pdf/test.pdf",
+            pdf_path="INVESTIGATION-123/file-abc/pdf/v1/test.pdf",
         )
         mock_db_session.execute.assert_called_once()

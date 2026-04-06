@@ -32,3 +32,29 @@ export async function assignUserRoles(
   );
   return data;
 }
+
+// System Settings
+export interface SystemSettings {
+  [key: string]: {
+    value: string;
+    description: string | null;
+    updated_at: string | null;
+    updated_by: string | null;
+    is_sensitive: boolean;
+  };
+}
+
+export async function getSystemSettings(): Promise<SystemSettings> {
+  const { data } = await apiClient.get<SystemSettings>("/admin/settings");
+  return data;
+}
+
+export async function updateSystemSettings(
+  updates: Record<string, string>,
+): Promise<SystemSettings> {
+  const { data } = await apiClient.put<SystemSettings>(
+    "/admin/settings",
+    updates,
+  );
+  return data;
+}

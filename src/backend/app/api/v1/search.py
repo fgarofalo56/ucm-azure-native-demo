@@ -1,11 +1,11 @@
-"""Global search endpoint across investigations and documents."""
+"""Global search endpoint across investigations and documents — metadata-first."""
 
 import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import AppUser, Document, Investigation
+from app.db.models import AppUser, Document, DocumentVersion, Investigation
 from app.db.session import get_db_session
 from app.middleware.auth import get_app_user
 from app.models.schemas import SearchResponse, SearchResultItem
@@ -21,7 +21,11 @@ async def search_all(
     app_user: AppUser = Depends(get_app_user),
     session: AsyncSession = Depends(get_db_session),
 ) -> SearchResponse:
-    """Search investigations and documents using SQL LIKE."""
+    """Search investigations and documents using SQL LIKE.
+
+    Documents are searched by title and latest version filename.
+    No blob listing — all retrieval is metadata-driven.
+    """
     pattern = f"%{q}%"
     results: list[SearchResultItem] = []
 
@@ -50,21 +54,29 @@ async def search_all(
             )
 
     if type is None or type == "document":
+        # Search by document title or latest version filename (via join)
         doc_query = (
             select(Document)
+            .join(DocumentVersion, DocumentVersion.document_id == Document.id)
             .where(
                 Document.is_deleted == False,  # noqa: E712
-                Document.original_filename.ilike(pattern),
+                DocumentVersion.is_latest == True,  # noqa: E712
+                or_(
+                    Document.title.ilike(pattern),
+                    DocumentVersion.original_filename.ilike(pattern),
+                ),
             )
             .limit(20)
         )
         doc_result = await session.execute(doc_query)
-        for doc in doc_result.scalars().all():
+        for doc in doc_result.scalars().unique().all():
+            latest = doc.latest_version
+            display_name = doc.title or (latest.original_filename if latest else "Untitled")
             results.append(
                 SearchResultItem(
                     type="document",
                     id=str(doc.id),
-                    title=doc.original_filename,
+                    title=display_name,
                     subtitle=f"Investigation: {doc.investigation_id}",
                     url=f"/investigations/{doc.investigation_id}",
                 )

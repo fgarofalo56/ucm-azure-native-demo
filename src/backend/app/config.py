@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     # Azure Storage
     azure_storage_account_name: str = ""
     azure_storage_container_name: str = "assurancenet-documents"
+    azure_storage_staging_container: str = "assurancenet-staging"
+
+    # PDF conversion engine: "aspose" (default/production) or "gotenberg" (demo fallback)
+    pdf_engine: str = "aspose"
 
     # Azure SQL
     azure_sql_server: str = ""

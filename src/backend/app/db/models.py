@@ -105,26 +105,23 @@ class Investigation(Base):
 
 
 class Document(Base):
+    """Logical document entity — stable identity across versions.
+
+    Physical binaries live in DocumentVersion. Only the latest version
+    is visible to end users; historical versions are admin-only.
+    """
+
     __tablename__ = "documents"
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     investigation_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("investigations.id", ondelete="CASCADE"), nullable=False
     )
-    file_id: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
-    original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
-    content_type: Mapped[str | None] = mapped_column(String(255))
-    file_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    blob_path: Mapped[str] = mapped_column(String(1000), nullable=False)
-    pdf_path: Mapped[str | None] = mapped_column(String(1000))
-    pdf_conversion_status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
-    pdf_conversion_error: Mapped[str | None] = mapped_column(Text)
-    pdf_converted_at: Mapped[datetime | None] = mapped_column(DateTime)
-    blob_version_id: Mapped[str | None] = mapped_column(String(255))
-    checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    uploaded_by: Mapped[str] = mapped_column(String(255), nullable=False)
-    uploaded_by_name: Mapped[str | None] = mapped_column(String(255))
-    uploaded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    document_type: Mapped[str] = mapped_column(String(50), nullable=False, default="other")
+    title: Mapped[str | None] = mapped_column(String(500))
+    created_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_by_name: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
     )
@@ -132,14 +129,90 @@ class Document(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
     deleted_by: Mapped[str | None] = mapped_column(String(255))
 
+    # Pointer to the current (latest) version
+    current_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("document_versions.id", use_alter=True), nullable=True
+    )
+
     investigation: Mapped["Investigation"] = relationship(back_populates="documents")
+    versions: Mapped[list["DocumentVersion"]] = relationship(
+        back_populates="document",
+        foreign_keys="DocumentVersion.document_id",
+        lazy="selectin",
+        cascade="all, delete-orphan",
+        order_by="DocumentVersion.version_number.desc()",
+    )
 
     __table_args__ = (
         Index("ix_documents_investigation_id", "investigation_id"),
-        Index("ix_documents_file_id", "file_id"),
-        Index("ix_documents_pdf_status", "pdf_conversion_status"),
-        Index("ix_documents_uploaded_at", "uploaded_at"),
+        Index("ix_documents_type", "document_type"),
+        Index("ix_documents_deleted", "is_deleted"),
     )
+
+    @property
+    def latest_version(self) -> "DocumentVersion | None":
+        """Return the latest (is_latest=True) version, or None."""
+        for v in self.versions:
+            if v.is_latest:
+                return v
+        return self.versions[0] if self.versions else None
+
+
+class DocumentVersion(Base):
+    """Immutable physical binary — one version of a logical document.
+
+    Contains the actual blob paths, file metadata, and PDF conversion state.
+    Once created, a version's binary data is never modified.
+    """
+
+    __tablename__ = "document_versions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    document_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
+    mime_type: Mapped[str | None] = mapped_column(String(255))
+    file_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    blob_path_original: Mapped[str] = mapped_column(String(1000), nullable=False)
+    blob_path_pdf: Mapped[str | None] = mapped_column(String(1000))
+    checksum: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_latest: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # PDF conversion tracking
+    pdf_conversion_status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
+    pdf_conversion_error: Mapped[str | None] = mapped_column(Text)
+    pdf_converted_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Malware scan tracking
+    scan_status: Mapped[str] = mapped_column(String(50), nullable=False, default="clean")
+    scanned_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Upload provenance
+    uploaded_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    uploaded_by_name: Mapped[str | None] = mapped_column(String(255))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+
+    document: Mapped["Document"] = relationship(back_populates="versions", foreign_keys=[document_id])
+
+    __table_args__ = (
+        Index("ix_docver_document_id", "document_id"),
+        Index("ix_docver_is_latest", "document_id", "is_latest"),
+        Index("ix_docver_version", "document_id", "version_number", unique=True),
+    )
+
+
+class SystemSetting(Base):
+    """Key-value system settings configurable by admins."""
+
+    __tablename__ = "system_settings"
+
+    key: Mapped[str] = mapped_column(String(100), primary_key=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(500))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    updated_by: Mapped[str | None] = mapped_column(String(255))
 
 
 class AuditLog(Base):

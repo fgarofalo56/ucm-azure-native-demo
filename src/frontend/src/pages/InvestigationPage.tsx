@@ -47,7 +47,7 @@ export function InvestigationPage() {
   } = useDocuments(id ?? "");
   const updateMutation = useUpdateInvestigation(id ?? "");
 
-  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(
     new Set(),
   );
   const [activeTab, setActiveTab] = useState<Tab>("documents");
@@ -60,13 +60,13 @@ export function InvestigationPage() {
   const [viewingVersions, setViewingVersions] = useState<Document | null>(null);
 
   const handleSelectForMerge = useCallback(
-    (fileId: string, selected: boolean) => {
-      setSelectedFileIds((prev) => {
+    (documentId: string, selected: boolean) => {
+      setSelectedDocumentIds((prev) => {
         const next = new Set(prev);
         if (selected) {
-          next.add(fileId);
+          next.add(documentId);
         } else {
-          next.delete(fileId);
+          next.delete(documentId);
         }
         return next;
       });
@@ -415,8 +415,8 @@ export function InvestigationPage() {
           {/* Merge bar */}
           <PdfMerge
             recordId={investigation.record_id}
-            selectedFileIds={Array.from(selectedFileIds)}
-            onClear={() => setSelectedFileIds(new Set())}
+            selectedDocumentIds={Array.from(selectedDocumentIds)}
+            onClear={() => setSelectedDocumentIds(new Set())}
           />
 
           {/* Document detail/version panels */}
@@ -447,7 +447,7 @@ export function InvestigationPage() {
               documents={documents}
               onRefresh={() => refetch()}
               onSelectForMerge={handleSelectForMerge}
-              selectedForMerge={selectedFileIds}
+              selectedForMerge={selectedDocumentIds}
               onViewDetails={(doc) => setViewingDoc(doc)}
               onViewVersions={(doc) => setViewingVersions(doc)}
             />

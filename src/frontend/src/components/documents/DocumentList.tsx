@@ -25,7 +25,7 @@ import { formatDistanceToNow } from "date-fns";
 interface DocumentListProps {
   documents: Document[];
   onRefresh: () => void;
-  onSelectForMerge?: (fileId: string, selected: boolean) => void;
+  onSelectForMerge?: (documentId: string, selected: boolean) => void;
   selectedForMerge?: Set<string>;
   onViewDetails?: (doc: Document) => void;
   onViewVersions?: (doc: Document) => void;
@@ -195,7 +195,7 @@ export function DocumentList({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = doc.original_filename;
+      a.download = doc.original_filename ?? "download";
       a.click();
       URL.revokeObjectURL(url);
     } finally {
@@ -207,7 +207,7 @@ export function DocumentList({
     setLoading(doc.id);
     try {
       const blob = await downloadPdf(doc.id);
-      const baseName = doc.original_filename.replace(/\.[^.]+$/, "");
+      const baseName = (doc.original_filename ?? "document").replace(/\.[^.]+$/, "");
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -220,7 +220,7 @@ export function DocumentList({
   };
 
   const handleDelete = async (doc: Document) => {
-    if (!confirm(`Delete "${doc.original_filename}"?`)) return;
+    if (!confirm(`Delete "${doc.original_filename ?? doc.title ?? "this document"}"?`)) return;
     setError(null);
     try {
       await deleteDocument(doc.id);
@@ -229,7 +229,7 @@ export function DocumentList({
       setError(
         err instanceof Error
           ? err.message
-          : `Failed to delete "${doc.original_filename}"`,
+          : `Failed to delete "${doc.original_filename ?? "document"}"`,
       );
     }
   };
@@ -283,16 +283,16 @@ export function DocumentList({
           </thead>
           <tbody className="table-body">
             {documents.map((doc) => {
-              const FileIcon = getFileIcon(doc.content_type);
+              const FileIcon = getFileIcon(doc.mime_type);
               return (
                 <tr key={doc.id} className="table-row">
                   {onSelectForMerge && (
                     <td className="px-4 py-3.5">
                       <input
                         type="checkbox"
-                        checked={selectedForMerge?.has(doc.file_id) ?? false}
+                        checked={selectedForMerge?.has(doc.id) ?? false}
                         onChange={(e) =>
-                          onSelectForMerge(doc.file_id, e.target.checked)
+                          onSelectForMerge(doc.id, e.target.checked)
                         }
                         disabled={
                           doc.pdf_conversion_status !== "completed" &&
@@ -318,28 +318,30 @@ export function DocumentList({
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-secondary-900 dark:text-secondary-100 truncate">
-                          {doc.original_filename}
+                          {doc.original_filename ?? doc.title ?? "Untitled"}
                         </p>
                         <p className="text-xs text-secondary-400 dark:text-secondary-500 truncate">
-                          {doc.content_type ?? "Unknown type"}
+                          {doc.mime_type ?? "Unknown type"}
                         </p>
                       </div>
                     </div>
                   </td>
                   <td className="table-cell whitespace-nowrap">
                     <span className="text-sm text-secondary-500 dark:text-secondary-400">
-                      {formatSize(doc.file_size_bytes)}
+                      {doc.file_size_bytes != null ? formatSize(doc.file_size_bytes) : "—"}
                     </span>
                   </td>
                   <td className="table-cell">
-                    <ConversionStatus status={doc.pdf_conversion_status} />
+                    <ConversionStatus status={doc.pdf_conversion_status ?? "pending"} />
                   </td>
                   <td className="table-cell whitespace-nowrap">
                     <div>
                       <p className="text-sm text-secondary-500 dark:text-secondary-400">
-                        {formatDistanceToNow(new Date(doc.uploaded_at), {
-                          addSuffix: true,
-                        })}
+                        {doc.uploaded_at
+                          ? formatDistanceToNow(new Date(doc.uploaded_at), {
+                              addSuffix: true,
+                            })
+                          : "—"}
                       </p>
                       {doc.uploaded_by_name && (
                         <p className="text-xs text-secondary-400 dark:text-secondary-500">

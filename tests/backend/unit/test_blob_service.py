@@ -1,7 +1,6 @@
 """Unit tests for BlobService."""
 
 import pytest
-from unittest.mock import MagicMock
 
 from app.services.blob_service import BlobService
 
@@ -13,16 +12,16 @@ def blob_service(mock_blob_service_client):
 
 class TestBlobService:
     def test_build_blob_path(self, blob_service):
-        path = blob_service.build_blob_path("INVESTIGATION-123", "file-abc", "report.docx")
-        assert path == "INVESTIGATION-123/file-abc/blob/report.docx"
+        path = blob_service.build_blob_path("INVESTIGATION-123", "file-abc", 1, "report.docx")
+        assert path == "INVESTIGATION-123/file-abc/original/v1/report.docx"
 
     def test_build_pdf_path(self, blob_service):
-        path = blob_service.build_pdf_path("INVESTIGATION-123", "file-abc", "report.docx")
-        assert path == "INVESTIGATION-123/file-abc/pdf/report.pdf"
+        path = blob_service.build_pdf_path("INVESTIGATION-123", "file-abc", 1, "report.docx")
+        assert path == "INVESTIGATION-123/file-abc/pdf/v1/report.pdf"
 
     def test_build_pdf_path_no_extension(self, blob_service):
-        path = blob_service.build_pdf_path("INVESTIGATION-123", "file-abc", "report")
-        assert path == "INVESTIGATION-123/file-abc/pdf/report.pdf"
+        path = blob_service.build_pdf_path("INVESTIGATION-123", "file-abc", 1, "report")
+        assert path == "INVESTIGATION-123/file-abc/pdf/v1/report.pdf"
 
     def test_compute_checksum(self):
         data = b"hello world"

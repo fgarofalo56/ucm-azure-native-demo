@@ -33,7 +33,7 @@ This guide covers everything you need to set up a local development environment,
 | Azure CLI | Latest | Azure resource interaction, local auth |
 | ODBC Driver 18 for SQL Server | Latest | Azure SQL connectivity |
 | Azure Functions Core Tools | 4.x | Local Functions development |
-| Docker (optional) | Latest | Running Gotenberg locally for PDF conversion |
+| Docker (optional) | Latest | Running Gotenberg locally (if using opensource engine with Office conversion) |
 
 ### 🚀 Clone and Initialize
 
@@ -281,8 +281,8 @@ All backend code uses `structlog` for structured, JSON-formatted logging that in
 import structlog
 logger = structlog.get_logger()
 
-logger.info("document_uploaded", file_id=file_id, size_bytes=len(data))
-logger.warning("conversion_failed", file_id=file_id, error=str(e))
+logger.info("document_uploaded", document_id=str(document.id), version=version.version_number, size_bytes=len(data))
+logger.warning("conversion_failed", document_id=str(document.id), version=version.version_number, error=str(e))
 ```
 
 > [!TIP]
@@ -468,34 +468,43 @@ The project uses TanStack React Query (v5) for server state management. Patterns
     └── 📄 text_converter.py       # Text/RTF to PDF conversion
 ```
 
-### 🏗️ How Event Grid Triggers Work
+### 🏗️ How PDF Conversion Works
+
+PDF conversion runs **in-process** during file upload in the FastAPI backend. The conversion engine is admin-configurable via the `system_settings` database table.
 
 ```mermaid
 flowchart LR
-    A[Upload to<br/>Blob Storage] --> B[Event Grid<br/>BlobCreated]
-    B --> C[pdf_converter<br/>Function]
-    C --> D{Content Type?}
-    D -->|Images| E[ImageConverter<br/>PIL-based]
-    D -->|Text/RTF| F[TextConverter]
-    D -->|Office docs| G[GotenbergClient<br/>HTTP API]
-    D -->|PDF| H[Skip]
-    E --> I[Upload PDF<br/>to Blob]
-    F --> I
-    G --> I
+    A[Upload File] --> B{MIME Type?}
+    B -->|application/pdf| C[Passthrough]
+    B -->|image/*| D["Pillow (in-process)"]
+    B -->|text/plain, CSV, RTF| E["fpdf2 (in-process)"]
+    B -->|Office: DOCX, XLSX, PPTX| F{system_settings<br/>pdf_engine?}
+    F -->|aspose| G["Aspose SDK<br/>(licensed)"]
+    F -->|opensource| H{gotenberg_url<br/>set?}
+    H -->|Yes| I["Gotenberg<br/>HTTP API"]
+    H -->|No| J[Skip - pending]
+    D --> K[Store PDF in Blob]
+    E --> K
+    G --> K
+    I --> K
+
+    style A fill:#dbeafe,stroke:#1971c2
+    style K fill:#dcfce7,stroke:#2f9e44
 ```
 
-1. A document is uploaded to Azure Blob Storage (`assurancenet-documents` container).
-2. Event Grid detects the `BlobCreated` event and fires the trigger.
-3. The `pdf_converter` function receives the event, extracts the blob path from the subject.
-4. The function downloads the original file, determines the content type, and routes to the appropriate converter.
-5. The converted PDF is uploaded to `{record_id}/{file_id}/pdf/{basename}.pdf`.
-6. Blobs already in `/pdf/` paths are skipped to avoid infinite loops.
+1. A document is uploaded via the API. The backend reads the `pdf_engine` setting from `system_settings`.
+2. Based on the file's MIME type, it routes to the appropriate converter (in-process, no external Function required).
+3. Images use Pillow, text/CSV use fpdf2, Office files use Aspose (if licensed) or Gotenberg (if URL configured).
+4. The converted PDF is uploaded to `{record_id}/{document_id}/pdf/v{N}/{basename}.pdf`.
+5. The `DocumentVersion.pdf_conversion_status` is updated to `completed`.
+
+> **Note:** The Azure Functions pipeline (`src/functions/`) is an optional async alternative for high-volume scenarios. In the default architecture, PDF conversion runs in-process during upload.
 
 ### 💡 Adding a New Converter
 
-1. Create a new service in `src/functions/services/` (e.g., `html_converter.py`).
-2. Implement a `convert(file_data: bytes, filename: str) -> bytes` method that returns PDF bytes.
-3. Register the content types in `ConversionService.__init__` and add routing logic in `convert_to_pdf`.
+1. Add your MIME type to the sets in `src/backend/app/services/pdf_conversion_service.py`.
+2. Implement a `_convert_xxx(file_data, filename)` function that returns PDF bytes.
+3. Add the routing logic in the `convert_to_pdf()` function.
 
 ### ⌨️ Testing Locally with Azure Functions Core Tools
 
@@ -676,7 +685,7 @@ def test_upload_document(client, mock_auth):
         files={"file": ("test.pdf", b"PDF content", "application/pdf")},
     )
     assert response.status_code == 201
-    assert "file_id" in response.json()
+    assert "document_id" in response.json()
 ```
 
 ### 🧪 Writing E2E Tests (Playwright)

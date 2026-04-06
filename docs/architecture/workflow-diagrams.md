@@ -50,28 +50,34 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant Blob as Azure Blob Storage
-    participant EG as Event Grid
-    participant Func as Azure Function
-    participant Got as Gotenberg
+    participant API as FastAPI Backend
+    participant Settings as system_settings DB
+    participant Staging as Staging Container
+    participant Blob as Production Blob Storage
     participant SQL as Azure SQL DB
-    participant Audit as Audit Log
 
-    Blob->>EG: BlobCreated event (filtered: /blob/ path, non-PDF)
-    EG->>Func: Trigger pdf_converter function
-    Func->>Blob: Download original file
-    Blob-->>Func: File binary
-    alt Image file (JPEG, PNG, TIFF, BMP)
-        Func->>Func: Convert with Pillow + img2pdf
-    else Office document (DOCX, XLSX, PPTX)
-        Func->>Got: POST /forms/libreoffice/convert
-        Got-->>Func: PDF binary
-    else Plain text (TXT, RTF)
-        Func->>Func: Convert with fpdf2
+    API->>Settings: Read pdf_engine + malware_scanning_enabled
+    alt Malware scanning enabled
+        API->>Staging: Upload to staging container
+        Note over Staging: Defender for Storage scans
+        API->>Blob: Promote clean file to production
+    else Scanning disabled
+        API->>Blob: Upload directly to production
     end
-    Func->>Blob: Upload PDF to .../{FileId}/pdf/{filename}.pdf
-    Func->>SQL: UPDATE pdf_conversion_status='completed'
-    Func->>Audit: Log: document.pdf_converted
+    API->>Blob: Upload to .../{documentId}/original/v{N}/{filename}
+    alt Image file (JPEG, PNG, TIFF, BMP)
+        API->>API: Convert with Pillow (in-process)
+    else Text/CSV file
+        API->>API: Convert with fpdf2 (in-process)
+    else Office document (DOCX, XLSX, PPTX)
+        alt Engine = aspose
+            API->>API: Convert with Aspose SDK (licensed)
+        else Engine = opensource + Gotenberg URL set
+            API->>API: Convert via Gotenberg HTTP API
+        end
+    end
+    API->>Blob: Upload PDF to .../{documentId}/pdf/v{N}/{basename}.pdf
+    API->>SQL: UPDATE document_versions SET pdf_conversion_status='completed'
 ```
 
 > [!NOTE]
@@ -117,8 +123,8 @@ sequenceDiagram
     User->>FE: Select multiple documents, click "Merge PDFs"
     FE->>API: POST /api/v1/investigations/{recordId}/merge-pdf
     API->>API: Validate JWT + authorization
-    loop For each file_id
-        API->>SQL: GET pdf_path for file_id
+    loop For each document_id (sorted by document_type)
+        API->>SQL: Resolve latest version, GET blob_path_pdf for document_id
         API->>Blob: Download PDF
         Blob-->>API: PDF binary
     end
@@ -187,6 +193,127 @@ sequenceDiagram
     API->>API: Validate JWT (signature, aud, iss, exp)
     API->>API: Extract claims (oid, name, roles)
     API-->>FE: API response
+```
+
+---
+
+## PDF Conversion Engine Selection
+
+```mermaid
+flowchart TD
+    Upload[File Uploaded] --> CheckType{Check MIME Type}
+    CheckType -->|application/pdf| Pass[Passthrough - no conversion]
+    CheckType -->|image/*| Pillow[Pillow + img2pdf]
+    CheckType -->|text/plain, text/csv, text/rtf| Fpdf2[fpdf2 text renderer]
+    CheckType -->|Office: DOCX, XLSX, PPTX| ReadSettings{Read system_settings}
+    ReadSettings -->|pdf_engine = aspose| Aspose[Aspose SDK]
+    ReadSettings -->|pdf_engine = opensource| CheckGotenberg{gotenberg_url set?}
+    CheckGotenberg -->|Yes| Gotenberg[Gotenberg HTTP API]
+    CheckGotenberg -->|No| Skip[Skip - mark pending]
+    Pillow --> StorePDF[Upload PDF to /pdf/v{N}/]
+    Fpdf2 --> StorePDF
+    Aspose --> StorePDF
+    Gotenberg --> StorePDF
+    StorePDF --> UpdateDB[UPDATE pdf_conversion_status = completed]
+```
+
+---
+
+## Malware Scanning Pipeline
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as FastAPI API
+    participant Settings as system_settings
+    participant Staging as assurancenet-staging
+    participant Defender as Defender for Storage
+    participant Prod as assurancenet-documents
+    participant SQL as Azure SQL
+
+    User->>API: Upload file
+    API->>Settings: Read malware_scanning_enabled
+    alt Scanning Enabled
+        API->>Staging: Upload to staging container
+        Defender->>Staging: Scan for malware
+        alt Clean
+            API->>Prod: promote_from_staging()
+            API->>Staging: Delete staging copy
+            API->>SQL: scan_status = 'clean'
+        else Infected
+            API->>SQL: scan_status = 'infected'
+            Note over Staging: File quarantined
+        end
+    else Scanning Disabled
+        API->>Prod: Upload directly
+        API->>SQL: scan_status = 'clean'
+    end
+    API->>SQL: Create DocumentVersion record
+```
+
+---
+
+## Admin Version Rollback
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant API as POST /admin/documents/{id}/rollback
+    participant SQL as Azure SQL
+    participant Audit as Audit Log
+
+    Admin->>API: Rollback request
+    API->>SQL: Get all versions (ordered by version_number DESC)
+    SQL-->>API: [v3 (latest), v2, v1]
+
+    alt Only 1 version exists
+        API-->>Admin: 400 Bad Request - cannot rollback
+    else 2+ versions exist
+        API->>SQL: UPDATE v3 SET is_latest = false
+        API->>SQL: UPDATE v2 SET is_latest = true
+        API->>SQL: UPDATE document SET current_version_id = v2.id
+        API->>Audit: Log rollback event
+        API-->>Admin: {rolled_back: v3, promoted: v2}
+    end
+    Note over SQL: No binary data modified - only metadata pointers
+```
+
+---
+
+## Request Correlation & Tracing
+
+```mermaid
+flowchart LR
+    subgraph Client
+        React[React SPA]
+    end
+
+    subgraph API["FastAPI Backend"]
+        MW[Auth Middleware] --> Route[Route Handler]
+        Route --> Service[Service Layer]
+    end
+
+    subgraph Data
+        Blob[Blob Storage]
+        SQL[Azure SQL]
+        AuditTbl[Audit Log]
+    end
+
+    subgraph Monitoring
+        AI[App Insights]
+        LAW[Log Analytics]
+    end
+
+    React -->|"correlation_id in header"| MW
+    Service --> Blob
+    Service --> SQL
+    Service --> AuditTbl
+    Route -->|"structlog with correlation_id"| AI
+    AI --> LAW
+
+    style React fill:#61dafb,color:#000
+    style MW fill:#009688,color:#fff
+    style AuditTbl fill:#ffd8a8,color:#000
 ```
 
 ---

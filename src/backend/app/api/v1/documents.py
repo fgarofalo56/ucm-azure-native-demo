@@ -1,10 +1,13 @@
-"""Document upload, download, list, delete, and version endpoints."""
+"""Document upload, download, list, delete endpoints — version-aware.
+
+End users only see latest versions. Historical versions are admin-only (see admin.py).
+"""
 
 import uuid
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,7 +16,7 @@ from app.db.models import AppUser
 from app.db.session import get_db_session
 from app.dependencies import get_blob_service_client
 from app.middleware.auth import require_permission
-from app.models.enums import AuditEventType, PdfConversionStatus
+from app.models.enums import AuditEventType, DocumentType, PdfConversionStatus
 from app.models.schemas import (
     BatchUploadResponse,
     BatchUploadResult,
@@ -22,14 +25,93 @@ from app.models.schemas import (
     CopyDocumentsResponse,
     DocumentResponse,
     DocumentUploadResponse,
-    DocumentVersionResponse,
 )
 from app.services.audit_service import AuditService
 from app.services.blob_service import BlobService
 from app.services.metadata_service import MetadataService
+from app.services.pdf_conversion_service import convert_to_pdf
+from app.services.settings_service import SettingsService
 
 logger = structlog.get_logger()
 router = APIRouter()
+
+
+async def _do_pdf_conversion(
+    file_data: bytes,
+    filename: str,
+    content_type: str | None,
+    session,
+) -> bytes | None:
+    """Read PDF engine settings from DB and convert."""
+    svc = SettingsService(session)
+    engine = await svc.get("pdf_engine")
+    gotenberg_url = await svc.get("gotenberg_url")
+    words_lic = await svc.get("aspose_words_license")
+    cells_lic = await svc.get("aspose_cells_license")
+    slides_lic = await svc.get("aspose_slides_license")
+    return convert_to_pdf(
+        file_data,
+        filename,
+        content_type,
+        engine=engine,
+        gotenberg_url=gotenberg_url,
+        aspose_words_license=words_lic,
+        aspose_cells_license=cells_lic,
+        aspose_slides_license=slides_lic,
+    )
+
+
+async def _upload_with_scanning(
+    blob_svc: BlobService,
+    blob_path: str,
+    file_data: bytes,
+    content_type: str | None,
+    session,
+) -> None:
+    """Upload to staging (if scanning enabled), otherwise direct to production."""
+    svc = SettingsService(session)
+    scanning_enabled = await svc.is_malware_scanning_enabled()
+
+    if scanning_enabled:
+        # Two-phase: upload to staging first
+        await blob_svc.upload_blob(blob_path, file_data, content_type, staging=True)
+        # In production, Defender for Storage scans and an Event Grid subscription
+        # would auto-promote clean files. For the demo, we promote immediately
+        # after upload (scan is async — the scan_status field tracks the result).
+        try:
+            await blob_svc.promote_from_staging(blob_path)
+            logger.info("blob_staged_and_promoted", blob_path=blob_path)
+        except Exception:
+            # If promote fails (staging container may not exist in dev), upload directly
+            logger.warning("staging_promote_failed_direct_upload", blob_path=blob_path)
+            await blob_svc.upload_blob(blob_path, file_data, content_type, staging=False)
+    else:
+        await blob_svc.upload_blob(blob_path, file_data, content_type)
+
+
+def _build_document_response(doc) -> DocumentResponse:
+    """Build a DocumentResponse from a Document ORM object with latest version inlined."""
+    latest = doc.latest_version
+    return DocumentResponse(
+        id=doc.id,
+        investigation_id=doc.investigation_id,
+        document_type=doc.document_type,
+        title=doc.title,
+        created_by=doc.created_by,
+        created_by_name=doc.created_by_name,
+        created_at=doc.created_at,
+        updated_at=doc.updated_at,
+        current_version_id=latest.id if latest else None,
+        version_number=latest.version_number if latest else None,
+        original_filename=latest.original_filename if latest else None,
+        mime_type=latest.mime_type if latest else None,
+        file_size_bytes=latest.file_size_bytes if latest else None,
+        checksum=latest.checksum if latest else None,
+        pdf_conversion_status=latest.pdf_conversion_status if latest else None,
+        uploaded_by=latest.uploaded_by if latest else None,
+        uploaded_by_name=latest.uploaded_by_name if latest else None,
+        uploaded_at=latest.uploaded_at if latest else None,
+    )
 
 
 @router.post(
@@ -42,18 +124,18 @@ async def upload_document(
     file: UploadFile,
     app_user: Annotated[AppUser, Depends(require_permission("documents", "create"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    document_type: DocumentType = Form(DocumentType.OTHER),
+    title: str | None = Form(None),
 ) -> DocumentUploadResponse:
-    """Upload a document to an investigation."""
+    """Upload a document to an investigation, creating a logical document + v1."""
     metadata_svc = MetadataService(session)
     blob_svc = BlobService(get_blob_service_client())
     audit_svc = AuditService(session)
 
-    # Validate investigation exists
     investigation = await metadata_svc.get_investigation(investigation_id)
     if not investigation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investigation not found")
 
-    # Read and validate file
     file_data = await file.read()
     if len(file_data) > settings.max_upload_size_bytes:
         raise HTTPException(
@@ -61,37 +143,51 @@ async def upload_document(
             detail=f"File exceeds maximum size of {settings.max_upload_size_mb}MB",
         )
 
-    # Generate IDs and compute checksum
-    file_id = str(uuid.uuid4())
     checksum = BlobService.compute_checksum(file_data)
     filename = file.filename or "unnamed"
     content_type = file.content_type
 
-    # Determine if PDF conversion is needed
     pdf_status = PdfConversionStatus.PENDING
     if content_type == "application/pdf":
         pdf_status = PdfConversionStatus.NOT_REQUIRED
 
-    # Upload to blob storage
-    blob_path = blob_svc.build_blob_path(investigation.record_id, file_id, filename)
-    _, version_id = await blob_svc.upload_blob(blob_path, file_data, content_type)
-
-    # Create metadata record
-    document = await metadata_svc.create_document(
+    # Create logical document + v1 in metadata
+    document, version = await metadata_svc.create_document_with_version(
         investigation_id=investigation_id,
-        file_id=file_id,
         original_filename=filename,
-        content_type=content_type,
+        mime_type=content_type,
         file_size_bytes=len(file_data),
-        blob_path=blob_path,
-        blob_version_id=version_id,
-        checksum_sha256=checksum,
+        blob_path_original="",  # placeholder, set after upload
+        checksum=checksum,
         user_id=app_user.entra_oid,
         user_name=app_user.display_name,
+        document_type=document_type,
+        title=title,
         pdf_conversion_status=pdf_status,
     )
 
-    # Audit log
+    # Build versioned blob path and upload
+    blob_path = blob_svc.build_blob_path(investigation.record_id, str(document.id), version.version_number, filename)
+    await _upload_with_scanning(blob_svc, blob_path, file_data, content_type, session)
+
+    # Update version with actual blob path
+    version.blob_path_original = blob_path
+    await session.flush()
+
+    # In-process PDF conversion using configured engine
+    if pdf_status == PdfConversionStatus.PENDING:
+        pdf_data = await _do_pdf_conversion(file_data, filename, content_type, session)
+        if pdf_data:
+            pdf_blob_path = blob_svc.build_pdf_path(
+                investigation.record_id, str(document.id), version.version_number, filename
+            )
+            await blob_svc.upload_blob(pdf_blob_path, pdf_data, "application/pdf")
+            version.blob_path_pdf = pdf_blob_path
+            version.pdf_conversion_status = PdfConversionStatus.COMPLETED
+            pdf_status = PdfConversionStatus.COMPLETED
+            await session.flush()
+            logger.info("pdf_converted_inline", document_id=str(document.id), pdf_path=pdf_blob_path)
+
     await audit_svc.log_event(
         event_type=AuditEventType.DOCUMENT_UPLOAD,
         user_id=app_user.entra_oid,
@@ -99,16 +195,122 @@ async def upload_document(
         action="create",
         result="success",
         resource_type="document",
-        resource_id=file_id,
-        details={"filename": filename, "size": len(file_data), "content_type": content_type},
+        resource_id=str(document.id),
+        details={
+            "filename": filename,
+            "size": len(file_data),
+            "content_type": content_type,
+            "version": version.version_number,
+            "document_type": document_type,
+        },
     )
 
     return DocumentUploadResponse(
-        id=document.id,
-        file_id=file_id,
+        document_id=document.id,
+        version_id=version.id,
+        version_number=version.version_number,
         original_filename=filename,
         file_size_bytes=len(file_data),
-        checksum_sha256=checksum,
+        checksum=checksum,
+        document_type=document_type,
+        pdf_conversion_status=pdf_status,
+        blob_path=blob_path,
+    )
+
+
+@router.post(
+    "/{document_id}/versions",
+    response_model=DocumentUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_new_version(
+    document_id: uuid.UUID,
+    file: UploadFile,
+    app_user: Annotated[AppUser, Depends(require_permission("documents", "create"))],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> DocumentUploadResponse:
+    """Upload a new version of an existing document. Previous version demoted."""
+    metadata_svc = MetadataService(session)
+    blob_svc = BlobService(get_blob_service_client())
+    audit_svc = AuditService(session)
+
+    document = await metadata_svc.get_document(document_id)
+    if not document:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    investigation = await metadata_svc.get_investigation(document.investigation_id)
+    if not investigation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investigation not found")
+
+    file_data = await file.read()
+    if len(file_data) > settings.max_upload_size_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds maximum size of {settings.max_upload_size_mb}MB",
+        )
+
+    checksum = BlobService.compute_checksum(file_data)
+    filename = file.filename or "unnamed"
+    content_type = file.content_type
+
+    pdf_status = PdfConversionStatus.PENDING
+    if content_type == "application/pdf":
+        pdf_status = PdfConversionStatus.NOT_REQUIRED
+
+    version = await metadata_svc.add_version(
+        document_id=document_id,
+        original_filename=filename,
+        mime_type=content_type,
+        file_size_bytes=len(file_data),
+        blob_path_original="",
+        checksum=checksum,
+        user_id=app_user.entra_oid,
+        user_name=app_user.display_name,
+        pdf_conversion_status=pdf_status,
+    )
+
+    blob_path = blob_svc.build_blob_path(investigation.record_id, str(document.id), version.version_number, filename)
+    await _upload_with_scanning(blob_svc, blob_path, file_data, content_type, session)
+
+    version.blob_path_original = blob_path
+    await session.flush()
+
+    # In-process PDF conversion using configured engine
+    if pdf_status == PdfConversionStatus.PENDING:
+        pdf_data = await _do_pdf_conversion(file_data, filename, content_type, session)
+        if pdf_data:
+            pdf_blob_path = blob_svc.build_pdf_path(
+                investigation.record_id, str(document.id), version.version_number, filename
+            )
+            await blob_svc.upload_blob(pdf_blob_path, pdf_data, "application/pdf")
+            version.blob_path_pdf = pdf_blob_path
+            version.pdf_conversion_status = PdfConversionStatus.COMPLETED
+            pdf_status = PdfConversionStatus.COMPLETED
+            await session.flush()
+
+    await audit_svc.log_event(
+        event_type=AuditEventType.DOCUMENT_UPLOAD,
+        user_id=app_user.entra_oid,
+        user_principal_name=app_user.email,
+        action="create",
+        result="success",
+        resource_type="document_version",
+        resource_id=str(version.id),
+        details={
+            "document_id": str(document_id),
+            "filename": filename,
+            "version": version.version_number,
+        },
+    )
+
+    return DocumentUploadResponse(
+        document_id=document.id,
+        version_id=version.id,
+        version_number=version.version_number,
+        original_filename=filename,
+        file_size_bytes=len(file_data),
+        checksum=checksum,
+        document_type=DocumentType(document.document_type),
         pdf_conversion_status=pdf_status,
         blob_path=blob_path,
     )
@@ -120,12 +322,12 @@ async def get_document(
     app_user: Annotated[AppUser, Depends(require_permission("documents", "read"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> DocumentResponse:
-    """Get document metadata by ID."""
+    """Get document metadata — latest version only."""
     metadata_svc = MetadataService(session)
     document = await metadata_svc.get_document(document_id)
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-    return DocumentResponse.model_validate(document)
+    return _build_document_response(document)
 
 
 @router.get("/{document_id}/download")
@@ -133,9 +335,8 @@ async def download_document(
     document_id: uuid.UUID,
     app_user: Annotated[AppUser, Depends(require_permission("documents", "download"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    version: str | None = None,
 ) -> StreamingResponse:
-    """Download original document (optionally a specific version)."""
+    """Download the latest version's original file."""
     metadata_svc = MetadataService(session)
     blob_svc = BlobService(get_blob_service_client())
     audit_svc = AuditService(session)
@@ -144,17 +345,11 @@ async def download_document(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    # Validate requested version belongs to this document's blob
-    if version:
-        valid_versions = await blob_svc.list_blob_versions(document.blob_path)
-        valid_version_ids = {v["version_id"] for v in valid_versions}
-        if version not in valid_version_ids:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Requested version not found for this document",
-            )
+    latest = document.latest_version
+    if not latest:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No version available")
 
-    data = await blob_svc.download_blob(document.blob_path, version_id=version)
+    data = await blob_svc.download_blob(latest.blob_path_original)
 
     await audit_svc.log_event(
         event_type=AuditEventType.DOCUMENT_DOWNLOAD,
@@ -163,14 +358,14 @@ async def download_document(
         action="read",
         result="success",
         resource_type="document",
-        resource_id=document.file_id,
-        details={"version": version, "format": "original"},
+        resource_id=str(document.id),
+        details={"version": latest.version_number, "format": "original"},
     )
 
     return StreamingResponse(
         iter([data]),
-        media_type=document.content_type or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{document.original_filename}"'},
+        media_type=latest.mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{latest.original_filename}"'},
     )
 
 
@@ -180,7 +375,7 @@ async def download_pdf(
     app_user: Annotated[AppUser, Depends(require_permission("documents", "download"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> StreamingResponse:
-    """Download the PDF version of a document."""
+    """Download the PDF version of the latest document version."""
     metadata_svc = MetadataService(session)
     blob_svc = BlobService(get_blob_service_client())
     audit_svc = AuditService(session)
@@ -189,31 +384,29 @@ async def download_pdf(
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
-    # For PDFs, serve the original
-    if document.pdf_conversion_status == PdfConversionStatus.NOT_REQUIRED:
-        data = await blob_svc.download_blob(document.blob_path)
-        filename = document.original_filename
-    elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and document.pdf_path:
-        data = await blob_svc.download_blob(document.pdf_path)
-        base = document.original_filename.rsplit(".", 1)[0]
+    latest = document.latest_version
+    if not latest:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No version available")
+
+    if latest.pdf_conversion_status == PdfConversionStatus.NOT_REQUIRED:
+        data = await blob_svc.download_blob(latest.blob_path_original)
+        filename = latest.original_filename
+    elif latest.pdf_conversion_status == PdfConversionStatus.COMPLETED and latest.blob_path_pdf:
+        data = await blob_svc.download_blob(latest.blob_path_pdf)
+        base = latest.original_filename.rsplit(".", 1)[0]
         filename = f"{base}.pdf"
-    elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and not document.pdf_path:
-        # PDF files marked completed without a separate pdf_path — use original
-        data = await blob_svc.download_blob(document.blob_path)
-        filename = document.original_filename
+    elif latest.pdf_conversion_status == PdfConversionStatus.COMPLETED and not latest.blob_path_pdf:
+        data = await blob_svc.download_blob(latest.blob_path_original)
+        filename = latest.original_filename
     else:
-        # Return appropriate status codes based on conversion state
-        if document.pdf_conversion_status in (
-            PdfConversionStatus.PENDING,
-            PdfConversionStatus.PROCESSING,
-        ):
+        if latest.pdf_conversion_status in (PdfConversionStatus.PENDING, PdfConversionStatus.PROCESSING):
             raise HTTPException(
                 status_code=status.HTTP_202_ACCEPTED,
-                detail=f"PDF conversion in progress. Status: {document.pdf_conversion_status}",
+                detail=f"PDF conversion in progress. Status: {latest.pdf_conversion_status}",
             )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"PDF not available. Conversion status: {document.pdf_conversion_status}",
+            detail=f"PDF not available. Conversion status: {latest.pdf_conversion_status}",
         )
 
     await audit_svc.log_event(
@@ -223,8 +416,8 @@ async def download_pdf(
         action="read",
         result="success",
         resource_type="document",
-        resource_id=document.file_id,
-        details={"format": "pdf"},
+        resource_id=str(document.id),
+        details={"version": latest.version_number, "format": "pdf"},
     )
 
     return StreamingResponse(
@@ -234,31 +427,13 @@ async def download_pdf(
     )
 
 
-@router.get("/{document_id}/versions", response_model=list[DocumentVersionResponse])
-async def list_document_versions(
-    document_id: uuid.UUID,
-    app_user: Annotated[AppUser, Depends(require_permission("documents", "read"))],
-    session: Annotated[AsyncSession, Depends(get_db_session)],
-) -> list[DocumentVersionResponse]:
-    """List all versions of a document."""
-    metadata_svc = MetadataService(session)
-    blob_svc = BlobService(get_blob_service_client())
-
-    document = await metadata_svc.get_document(document_id)
-    if not document:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
-
-    versions = await blob_svc.list_blob_versions(document.blob_path)
-    return [DocumentVersionResponse(**v) for v in versions]
-
-
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: uuid.UUID,
     app_user: Annotated[AppUser, Depends(require_permission("documents", "delete"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> None:
-    """Soft-delete a document."""
+    """Soft-delete a document (all versions)."""
     metadata_svc = MetadataService(session)
     audit_svc = AuditService(session)
 
@@ -274,7 +449,7 @@ async def delete_document(
         action="delete",
         result="success",
         resource_type="document",
-        resource_id=document.file_id,
+        resource_id=str(document.id),
     )
 
 
@@ -288,6 +463,7 @@ async def batch_upload_documents(
     files: list[UploadFile],
     app_user: Annotated[AppUser, Depends(require_permission("documents", "create"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
+    document_type: DocumentType = Form(DocumentType.OTHER),
 ) -> BatchUploadResponse:
     """Upload multiple documents to an investigation."""
     metadata_svc = MetadataService(session)
@@ -312,7 +488,6 @@ async def batch_upload_documents(
                 )
                 continue
 
-            file_id = str(uuid.uuid4())
             checksum = BlobService.compute_checksum(file_data)
             filename = file.filename or "unnamed"
             content_type = file.content_type
@@ -321,28 +496,44 @@ async def batch_upload_documents(
             if content_type == "application/pdf":
                 pdf_status = PdfConversionStatus.NOT_REQUIRED
 
-            blob_path = blob_svc.build_blob_path(investigation.record_id, file_id, filename)
-            _, version_id = await blob_svc.upload_blob(blob_path, file_data, content_type)
-
-            await metadata_svc.create_document(
+            document, version = await metadata_svc.create_document_with_version(
                 investigation_id=investigation_id,
-                file_id=file_id,
                 original_filename=filename,
-                content_type=content_type,
+                mime_type=content_type,
                 file_size_bytes=len(file_data),
-                blob_path=blob_path,
-                blob_version_id=version_id,
-                checksum_sha256=checksum,
+                blob_path_original="",
+                checksum=checksum,
                 user_id=app_user.entra_oid,
                 user_name=app_user.display_name,
+                document_type=document_type,
                 pdf_conversion_status=pdf_status,
             )
+
+            blob_path = blob_svc.build_blob_path(
+                investigation.record_id, str(document.id), version.version_number, filename
+            )
+            await _upload_with_scanning(blob_svc, blob_path, file_data, content_type, session)
+            version.blob_path_original = blob_path
+            await session.flush()
+
+            # In-process PDF conversion using configured engine
+            if pdf_status == PdfConversionStatus.PENDING:
+                pdf_data = await _do_pdf_conversion(file_data, filename, content_type, session)
+                if pdf_data:
+                    pdf_blob_path = blob_svc.build_pdf_path(
+                        investigation.record_id, str(document.id), version.version_number, filename
+                    )
+                    await blob_svc.upload_blob(pdf_blob_path, pdf_data, "application/pdf")
+                    version.blob_path_pdf = pdf_blob_path
+                    version.pdf_conversion_status = PdfConversionStatus.COMPLETED
+                    await session.flush()
 
             results.append(
                 BatchUploadResult(
                     filename=filename,
                     success=True,
-                    file_id=file_id,
+                    document_id=str(document.id),
+                    version_id=str(version.id),
                 )
             )
         except Exception as e:
@@ -381,7 +572,7 @@ async def copy_documents_to_investigation(
     app_user: Annotated[AppUser, Depends(require_permission("documents", "create"))],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> CopyDocumentsResponse:
-    """Copy existing documents to a different investigation."""
+    """Copy existing documents (latest versions) to a different investigation."""
     metadata_svc = MetadataService(session)
     blob_svc = BlobService(get_blob_service_client())
     audit_svc = AuditService(session)
@@ -398,31 +589,35 @@ async def copy_documents_to_investigation(
                 results.append(CopyDocumentResult(document_id=doc_id, success=False, error="Document not found"))
                 continue
 
-            # Download source blob
-            data = await blob_svc.download_blob(source_doc.blob_path)
-            new_file_id = str(uuid.uuid4())
+            latest = source_doc.latest_version
+            if not latest:
+                results.append(CopyDocumentResult(document_id=doc_id, success=False, error="No version available"))
+                continue
 
-            # Upload to target investigation folder
-            new_blob_path = blob_svc.build_blob_path(investigation.record_id, new_file_id, source_doc.original_filename)
-            _, version_id = await blob_svc.upload_blob(new_blob_path, data, source_doc.content_type)
-            checksum = BlobService.compute_checksum(data)
+            data = await blob_svc.download_blob(latest.blob_path_original)
 
-            # Create new document record
-            await metadata_svc.create_document(
+            new_doc, new_ver = await metadata_svc.create_document_with_version(
                 investigation_id=uuid.UUID(body.investigation_id),
-                file_id=new_file_id,
-                original_filename=source_doc.original_filename,
-                content_type=source_doc.content_type,
+                original_filename=latest.original_filename,
+                mime_type=latest.mime_type,
                 file_size_bytes=len(data),
-                blob_path=new_blob_path,
-                blob_version_id=version_id,
-                checksum_sha256=checksum,
+                blob_path_original="",
+                checksum=BlobService.compute_checksum(data),
                 user_id=app_user.entra_oid,
                 user_name=app_user.display_name,
-                pdf_conversion_status=PdfConversionStatus(source_doc.pdf_conversion_status),
+                document_type=DocumentType(source_doc.document_type),
+                title=source_doc.title,
+                pdf_conversion_status=PdfConversionStatus(latest.pdf_conversion_status),
             )
 
-            results.append(CopyDocumentResult(document_id=doc_id, success=True, new_file_id=new_file_id))
+            new_blob_path = blob_svc.build_blob_path(
+                investigation.record_id, str(new_doc.id), new_ver.version_number, latest.original_filename
+            )
+            await blob_svc.upload_blob(new_blob_path, data, latest.mime_type)
+            new_ver.blob_path_original = new_blob_path
+            await session.flush()
+
+            results.append(CopyDocumentResult(document_id=doc_id, success=True, new_document_id=str(new_doc.id)))
         except Exception as e:
             logger.error("copy_document_failed", document_id=doc_id, error=str(e))
             results.append(CopyDocumentResult(document_id=doc_id, success=False, error=str(e)))

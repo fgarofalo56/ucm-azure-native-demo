@@ -38,6 +38,12 @@ param contactEmail string
 @description('Deploy Functions and Event Grid (requires compute quota)')
 param deployFunctions bool = true
 
+@description('Enable malware scanning with staging container and Defender for Storage')
+param enableMalwareScanning bool = false
+
+@description('Deploy Defender for Cloud plans (AppService, SQL, Storage, KeyVault)')
+param deployDefender bool = true
+
 // Computed names
 var envTags = union(tags, { Environment: environment })
 var rgNames = {
@@ -175,6 +181,7 @@ module storage 'modules/storage.bicep' = {
     logAnalyticsWorkspaceId: monitoring.outputs.logAnalyticsWorkspaceId
     appManagedIdentityPrincipalId: managedIdentity.outputs.appManagedIdentityPrincipalId
     funcManagedIdentityPrincipalId: managedIdentity.outputs.funcManagedIdentityPrincipalId
+    enableMalwareScanning: enableMalwareScanning
   }
   dependsOn: [rgData]
 }
@@ -340,7 +347,7 @@ module policy 'modules/policy.bicep' = {
   }
 }
 
-module defender 'modules/defender.bicep' = {
+module defender 'modules/defender.bicep' = if (deployDefender) {
   name: 'deploy-defender'
 }
 

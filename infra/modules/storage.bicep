@@ -26,9 +26,13 @@ param appManagedIdentityPrincipalId string
 @description('Function Managed Identity principal ID for role assignment')
 param funcManagedIdentityPrincipalId string
 
+@description('Enable malware scanning staging container and Defender integration')
+param enableMalwareScanning bool = false
+
 // Storage account name (lowercase, no hyphens, max 24 chars)
 var storageAccountName = 'st${replace(projectName, '-', '')}${environment}'
 var containerName = 'assurancenet-documents'
+var stagingContainerName = 'assurancenet-staging'
 var isProduction = environment == 'prod'
 var isDev = environment == 'dev'
 
@@ -89,6 +93,15 @@ resource blobServices 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01
 resource documentsContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: blobServices
   name: containerName
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
+// Staging container for two-phase upload (malware scanning)
+resource stagingContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = if (enableMalwareScanning) {
+  parent: blobServices
+  name: stagingContainerName
   properties: {
     publicAccess: 'None'
   }
@@ -254,4 +267,5 @@ resource diagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-pr
 output storageAccountId string = storageAccount.id
 output storageAccountName string = storageAccount.name
 output documentsContainerName string = containerName
+output stagingContainerName string = stagingContainerName
 output blobEndpoint string = storageAccount.properties.primaryEndpoints.blob

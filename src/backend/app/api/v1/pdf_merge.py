@@ -1,5 +1,6 @@
-"""On-demand PDF merge endpoint."""
+"""On-demand PDF merge endpoint — type-based ordering, latest versions only."""
 
+import uuid
 from typing import Annotated
 
 import structlog
@@ -12,7 +13,7 @@ from app.db.models import AppUser
 from app.db.session import get_db_session
 from app.dependencies import get_blob_service_client
 from app.middleware.auth import require_permission
-from app.models.enums import AuditEventType, PdfConversionStatus
+from app.models.enums import MERGE_ORDER_CONFIG, AuditEventType, DocumentType, PdfConversionStatus
 from app.models.schemas import PdfMergeRequest
 from app.services.audit_service import AuditService
 from app.services.blob_service import BlobService
@@ -32,51 +33,65 @@ async def merge_pdfs(
 ) -> StreamingResponse:
     """Merge multiple documents into a single PDF download.
 
-    The merged PDF is NOT persisted - it's generated on-demand and streamed.
+    Documents are sorted by document type (rule-based ordering), not user order.
+    Only the latest version of each document is used.
+    The merged PDF is NOT persisted — it's generated on-demand and streamed.
     """
     metadata_svc = MetadataService(session)
     blob_svc = BlobService(get_blob_service_client())
     audit_svc = AuditService(session)
 
-    if len(body.file_ids) > settings.max_merge_files:
+    if len(body.document_ids) > settings.max_merge_files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Maximum {settings.max_merge_files} files allowed for merge",
         )
 
-    # Collect PDF contents
-    pdf_contents: list[bytes] = []
-    total_size = 0
-
-    for file_id in body.file_ids:
-        document = await metadata_svc.get_document_by_file_id(file_id)
+    # Load documents and their latest versions
+    documents_with_versions = []
+    for doc_id_str in body.document_ids:
+        doc_id = uuid.UUID(doc_id_str)
+        document = await metadata_svc.get_document(doc_id)
         if not document:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Document not found: {file_id}",
+                detail=f"Document not found: {doc_id_str}",
             )
+        latest = document.latest_version
+        if not latest:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No version available for document: {doc_id_str}",
+            )
+        documents_with_versions.append((document, latest))
 
-        # Determine which path to use (PDF or original if already PDF)
+    # Sort by document type merge order (rule-based, not user order)
+    documents_with_versions.sort(key=lambda dv: MERGE_ORDER_CONFIG.get(DocumentType(dv[0].document_type), 99))
+
+    # Collect PDF contents from sorted documents
+    pdf_contents: list[bytes] = []
+    total_size = 0
+
+    for document, latest in documents_with_versions:
         try:
-            if document.pdf_conversion_status == PdfConversionStatus.NOT_REQUIRED:
-                pdf_data = await blob_svc.download_blob(document.blob_path)
-            elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and document.pdf_path:
-                pdf_data = await blob_svc.download_blob(document.pdf_path)
-            elif document.pdf_conversion_status == PdfConversionStatus.COMPLETED and not document.pdf_path:
-                # PDF files marked completed without a separate pdf_path — use original
-                pdf_data = await blob_svc.download_blob(document.blob_path)
+            if latest.pdf_conversion_status == PdfConversionStatus.NOT_REQUIRED:
+                pdf_data = await blob_svc.download_blob(latest.blob_path_original)
+            elif latest.pdf_conversion_status == PdfConversionStatus.COMPLETED and latest.blob_path_pdf:
+                pdf_data = await blob_svc.download_blob(latest.blob_path_pdf)
+            elif latest.pdf_conversion_status == PdfConversionStatus.COMPLETED and not latest.blob_path_pdf:
+                pdf_data = await blob_svc.download_blob(latest.blob_path_original)
             else:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"PDF not available for {file_id}. Status: {document.pdf_conversion_status}",
+                    detail=f"PDF not available for document {document.id}. Status: {latest.pdf_conversion_status}",
                 )
         except HTTPException:
             raise
         except Exception as e:
-            logger.error("blob_download_failed", file_id=file_id, error=str(e))
+            logger.error("blob_download_failed", document_id=str(document.id), error=str(e))
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"Failed to download document {file_id} from storage",
+                detail=f"Failed to download document {document.id} from storage",
             ) from e
 
         total_size += len(pdf_data)
@@ -88,10 +103,8 @@ async def merge_pdfs(
 
         pdf_contents.append(pdf_data)
 
-    # Merge PDFs
     merged_pdf = PdfMergeService.merge_pdfs(pdf_contents)
 
-    # Audit log
     await audit_svc.log_event(
         event_type=AuditEventType.DOCUMENT_MERGE,
         user_id=app_user.entra_oid,
@@ -101,9 +114,10 @@ async def merge_pdfs(
         resource_type="investigation",
         resource_id=record_id,
         details={
-            "file_ids": body.file_ids,
-            "file_count": len(body.file_ids),
+            "document_ids": body.document_ids,
+            "document_count": len(body.document_ids),
             "merged_size_bytes": len(merged_pdf),
+            "order": [str(dv[0].id) for dv in documents_with_versions],
         },
     )
 

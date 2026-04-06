@@ -2,7 +2,7 @@
 
 # High-Level Architecture
 
-> **TL;DR:** AssuranceNet is an Azure-native document management system replacing Oracle UCM for FSIS. It uses Azure Blob Storage for files, FastAPI for the backend API, React for the frontend, and an Event Grid + Functions pipeline for async PDF conversion. All services authenticate via Managed Identities with zero secrets.
+> **TL;DR:** AssuranceNet is an Azure-native document management system replacing Oracle UCM for FSIS. It uses an explicit document versioning model (logical Document + immutable DocumentVersion) with latest-only visibility for end users. Azure Blob Storage holds versioned binaries in deterministic paths, FastAPI provides the backend API, React is a removable reference client. PDF conversion runs in-process with a dual-engine architecture (OpenSource or Aspose) configurable via the admin settings UI (`system_settings` DB table) — no restarts needed. Malware scanning uses a two-phase upload through a staging container. All services authenticate via Managed Identities with zero secrets.
 
 ---
 
@@ -36,12 +36,17 @@ graph TB
 
         subgraph Application - Container Apps
             API[FastAPI Backend<br/>Container App]
-            GOT[Gotenberg 8<br/>PDF Conversion]
+        end
+
+        subgraph PDF Pipeline
+            FUNC[Azure Functions<br/>PDF Conversion]
+            ASPOSE[Aspose SDK<br/>Word + Cells + Slides]
         end
 
         subgraph Data
             BLOB[Azure Blob Storage<br/>Versioned Documents]
-            SQL[Azure SQL Database<br/>Metadata + Audit + RBAC]
+            STAGING[Staging Container<br/>Malware Scanning]
+            SQL[Azure SQL Database<br/>Document + DocumentVersion<br/>+ Audit + RBAC]
         end
 
         subgraph Security
@@ -63,6 +68,9 @@ graph TB
     API --> BLOB
     API --> SQL
     API --> KV
+    FUNC --> ASPOSE
+    FUNC --> BLOB
+    STAGING -->|scan clean| BLOB
     MI -.-> BLOB
     MI -.-> SQL
     MI -.-> KV
@@ -73,7 +81,7 @@ graph TB
 
 | Resource Group | Resources |
 |---|---|
-| `rg-assurancenet-app-dev` | Container App (API), Container App (Gotenberg), 2 CAE, ACR, SWA |
+| `rg-assurancenet-app-dev` | Container App (API), Azure Functions (PDF), 2 CAE, ACR, SWA |
 | `rg-assurancenet-data-dev` | Storage Account, SQL Server + Database |
 | `rg-assurancenet-security-dev` | Key Vault, 2 Managed Identities |
 | `rg-assurancenet-monitoring-dev` | Log Analytics, Event Hub, Dashboard |
@@ -86,8 +94,11 @@ graph TB
 | Decision | Rationale |
 |----------|-----------|
 | **Azure Blob Storage** over SharePoint | 700K+ files at TB scale |
+| **Explicit document versioning** | Logical Document + immutable DocumentVersion; latest-only visibility for end users |
 | **Event Grid + Functions** for PDF pipeline | Async, event-driven conversion |
-| **Gotenberg** (LibreOffice) for Office conversion | Reliable Office format support |
+| **Dual PDF engine** (admin-configurable) | OpenSource (Pillow+fpdf2+Gotenberg) or Aspose (licensed); selected via admin settings UI, stored in DB, hot-swappable |
+| **Two-phase upload** with malware scanning | Staging container → scan → promote to production |
+| **Type-based merge ordering** | PDF merge sorted by `document_type`, not user order |
 | **Managed Identities** for service auth | Zero-secret service-to-service authentication |
 | **Private Endpoints** for data services | Network-level isolation for all data stores |
 

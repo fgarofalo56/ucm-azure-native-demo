@@ -22,6 +22,7 @@
 8. [FSIS-Specific Workflows](#8-fsis-specific-workflows)
 9. [Tips and Best Practices](#9-tips-and-best-practices)
 10. [Troubleshooting](#10-troubleshooting)
+11. [Administration (Admin Only)](#11-administration-admin-only)
 
 ---
 
@@ -270,13 +271,15 @@ Each document stored in AssuranceNet has detailed metadata that you can review:
 
 | Field | Description |
 |-------|-------------|
-| **File ID** | A unique system identifier for the document (UUID format). |
+| **Document ID** | A unique system identifier for the document (UUID format). |
+| **Document Type** | The classification of the document (e.g., inspection report, correspondence). |
+| **Title** | The display title of the document. |
+| **Version Number** | The current version number of the document. |
 | **Original Filename** | The name of the file as it was uploaded. |
-| **Content Type** | The MIME type of the file. |
+| **MIME Type** | The MIME type of the file. |
 | **File Size** | The exact size of the file in bytes. |
-| **SHA-256 Checksum** | A cryptographic hash of the file contents for integrity verification. |
-| **Blob Path** | The storage path in Azure Blob Storage (pattern: `{record_id}/{file_id}/blob/{filename}`). |
-| **Version ID** | The Azure Blob Storage version identifier for the current version. |
+| **Checksum** | A cryptographic hash of the file contents for integrity verification. |
+| **Blob Path** | The storage path in Azure Blob Storage (pattern: `{record_id}/{document_id}/original/v{N}/{filename}`). |
 | **Uploaded By** | The name and ID of the user who uploaded the file. |
 | **Upload Date** | When the file was uploaded. |
 | **PDF Conversion Status** | Whether PDF conversion has been completed. |
@@ -308,20 +311,27 @@ When you upload a non-PDF document, AssuranceNet automatically converts it to PD
 
 ```mermaid
 flowchart LR
-    A[Upload File] --> B[Store in<br/>Blob Storage]
-    B --> C[Event Grid<br/>Trigger]
-    C --> D[Azure Function]
-    D --> E[Gotenberg<br/>PDF Conversion]
-    E --> F[Store PDF in<br/>Blob Storage]
-    F --> G[Status: Ready]
+    A[Upload File] --> B{File Type?}
+    B -->|PDF| C[No conversion needed]
+    B -->|Image| D[Pillow converter]
+    B -->|Text/CSV| E[fpdf2 converter]
+    B -->|Office| F{Admin Engine Setting}
+    F -->|Aspose| G[Aspose SDK]
+    F -->|OpenSource| H[Gotenberg]
+    D --> I[PDF stored in Blob]
+    E --> I
+    G --> I
+    H --> I
+
+    style A fill:#dbeafe,stroke:#1971c2
+    style I fill:#dcfce7,stroke:#2f9e44
 ```
 
 1. You upload a file (for example, a .docx Word document).
 2. The file is stored in Azure Blob Storage.
-3. Azure Event Grid detects the new file and triggers an Azure Function.
-4. The Azure Function sends the file to the Gotenberg conversion service (powered by LibreOffice) for PDF rendering.
-5. The resulting PDF is stored alongside the original file in Blob Storage.
-6. The document's PDF status is updated to "Ready."
+3. The backend API converts the file to PDF in-process during the upload request. The conversion engine depends on the file type: images are converted with Pillow, text and CSV files with fpdf2, and Office documents with either Aspose or Gotenberg depending on the administrator's engine setting (see [System Settings](#system-settings)).
+4. The resulting PDF is stored alongside the original file in Blob Storage.
+5. The document's PDF status is updated to "Ready."
 
 > [!TIP]
 > You do not need to take any action to initiate conversion. It happens automatically. The typical conversion time is a few seconds to a few minutes depending on file size and format complexity.
@@ -656,7 +666,7 @@ To compute a SHA-256 checksum on your workstation:
 
 If a document remains in "Pending" status for more than 10 minutes:
 
-1. **Wait and refresh.** There may be a temporary delay in the Azure Event Grid trigger pipeline. Refresh the page after a few minutes.
+1. **Wait and refresh.** There may be a temporary delay in the in-process PDF conversion pipeline. Refresh the page after a few minutes.
 2. **Check other documents.** If all recently uploaded documents are stuck on "Pending," there may be a system-wide delay. Contact your administrator.
 3. **File format.** Some file formats may take longer to process than others. Very large files or files with complex formatting may require additional processing time.
 
@@ -699,6 +709,41 @@ The Audit Log page requires the **Admin** role. If you see a message indicating 
 - **Clear browser cache.** If the application behaves unexpectedly, clearing your browser cache and cookies for the AssuranceNet domain often resolves the issue.
 - **Try a different browser.** If an issue persists in one browser, try another supported browser to determine if the problem is browser-specific.
 - **Contact your administrator.** For persistent issues, provide your administrator with the following details: the action you were trying to perform, the investigation record ID (if applicable), the document filename (if applicable), the approximate time the issue occurred, and any error messages displayed.
+
+---
+
+## 11. Administration (Admin Only)
+
+### System Settings
+
+Administrators can configure system-wide settings from the **Administration** page. The System Settings panel includes:
+
+| Setting | Description |
+|---------|-------------|
+| **PDF Engine** | Choose between **Open Source** (Pillow + fpdf2 for images/text, optional Gotenberg for Office) or **Aspose** (licensed, production-grade Office conversion) |
+| **Aspose License Keys** | Enter license keys for Aspose.Words, Aspose.Cells, and Aspose.Slides (required for licensed mode; evaluation mode available without keys) |
+| **Gotenberg URL** | Optional URL for a Gotenberg service providing Office document conversion (only used with the Open Source engine) |
+| **Malware Scanning** | Toggle two-phase upload scanning. When enabled, uploaded files are staged and scanned before being promoted to production storage |
+
+Settings take effect immediately — no restart or redeployment is required.
+
+### Document Types
+
+Each document is assigned a type that determines its position in merged PDF output:
+
+| Type | Merge Order | Description |
+|------|-------------|-------------|
+| Investigation Report | 1st | Investigation reports and summaries |
+| Inspection Form | 2nd | Inspection and sampling forms |
+| Laboratory Result | 3rd | Lab test results and data |
+| Legal Document | 4th | Legal and regulatory documents |
+| Correspondence | 5th | Letters, emails, communications |
+| Supporting Evidence | 6th | Supporting documentation |
+| Other | Last | Uncategorized documents |
+
+### Version Rollback
+
+Administrators can roll back a document to its previous version from the **Admin** > **Documents** section. This demotes the current version and promotes the prior version. No binary data is modified — only metadata pointers change. All rollback actions are recorded in the audit log.
 
 ---
 
