@@ -147,7 +147,8 @@ If the investigation identified a missing test:
 ### 5.1 Stage Changes
 
 ```bash
-git add -A
+# Stage changed files by name (preferred) or use git add . for all
+git add <changed-files>
 ```
 
 ### 5.2 Create Commit
