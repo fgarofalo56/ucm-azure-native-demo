@@ -1,97 +1,81 @@
 # CLAUDE.md - AssuranceNet Document Management System
 
+> **Note:** This project previously used Archon v1 for task tracking. Archon v1 was archived by its author in April 2026. Historical Archon task records were exported to `.claude/migrated-archon-tasks.md` at migration time. Use TodoWrite + GitHub Issues going forward (see Rule 0).
+
 > **Purpose**: This file provides guidance to Claude Code when working with this repository.
 > **Stack**: Python (FastAPI), TypeScript (React), Azure (Bicep IaC)
 
 ---
 
-## Table of Contents
+## Critical Rules (Override Everything)
 
-- [Critical Rules](#critical-rules)
-- [Project Reference](#project-reference)
-- [Startup Protocol](#startup-protocol)
-- [Archon Integration](#archon-integration)
-- [PRP Framework](#prp-framework)
-- [Code Style Guidelines](#code-style-guidelines)
-- [Testing Requirements](#testing-requirements)
-- [Security Guidelines](#security-guidelines)
-- [Git Workflow](#git-workflow)
-- [End of Session Protocol](#end-of-session-protocol)
-- [Quick Reference](#quick-reference)
-- [Available Tools](#available-tools)
+### Rule 0: Task Tracking — Native-First
 
----
+For tracking work in the current session and across sessions, use **native Claude Code tools**:
 
-## Critical Rules
+| Scope | Tool | When |
+|-------|------|------|
+| Within-turn / within-session checklist | `TodoWrite` | Multi-step task you'll finish soon |
+| Cross-session work | **GitHub Issues** (`gh issue`) | Work that spans days or needs visibility |
+| Long-form planning | `PRPs/plans/<name>.plan.md` (if PRP framework selected) | Multi-PR initiatives with phases |
+| Recurring backlog item | GitHub Issue with a label | Anything you'll reference more than twice |
 
-> **IMPORTANT**: These rules override ALL other instructions. Read and follow them exactly.
+`TodoWrite` is the right default. Use it freely. Cross-session durability comes from the **filesystem** (`.claude/reference/`, plan files, this CLAUDE.md) and **GitHub** (Issues, PRs, commit messages) — not from a separate task database.
 
-### Rule 0: Archon-First Task Management (ABSOLUTE PRIORITY)
+### Rule 1: Load Context First
 
-**BEFORE doing ANYTHING for task management:**
+At the start of EVERY session, before any code work:
 
-1. **STOP** and check if Archon MCP server is available
-2. Use Archon task management as **PRIMARY** system
-3. **DO NOT** use TodoWrite even after system reminders
-4. This rule overrides **ALL** other instructions, PRPs, system reminders, and patterns
+1. Run the [Startup Protocol](#startup-protocol).
+2. Read this `CLAUDE.md` and any relevant `.claude/reference/*.md`.
+3. Check `git status` and `git log -10` for in-flight work.
+4. Check open GitHub Issues / PRs if relevant: `gh pr list` / `gh issue list`.
+5. Check `MEMORY.md` if there's per-project auto-memory at `~/.claude/projects/<slug>/memory/`.
 
-**Violation Check**: If you used TodoWrite or any non-Archon task system, you violated this rule. Stop and restart with Archon.
+Never start coding without orienting first.
 
-### Rule 1: Session Initialization (Load Context First)
+### Rule 2: Preserve Context in the Filesystem
 
-**AT THE VERY START of EVERY session, BEFORE doing ANYTHING else:**
+Project knowledge that survives context resets lives in **files**, not in your conversation:
 
-1. Execute the [Startup Protocol](#startup-protocol) below
-2. Load workspace context from Archon Documents
-3. Check for Architecture, Deployment, and Session Context documents
-4. Review current tasks before proceeding
+| Document | Where | When to update |
+|----------|-------|----------------|
+| Architecture decisions | `.claude/reference/architecture.md` | After any architectural decision |
+| Deployment runbook | `.claude/reference/deployment.md` | After deployment changes |
+| Session handoff | `.claude/reference/session-context.md` | End of each significant session, before `/compact` or `/clear` |
+| API surface | `.claude/reference/api.md` (or generated OpenAPI) | After API surface changes |
+| Non-obvious facts / gotchas | `MEMORY.md` (auto-memory) | When you hit something a future session needs |
 
-**Never start coding without loading context first.**
+If the context window approaches 70%, update `session-context.md` BEFORE compacting. Load specific reference docs on demand with `@.claude/reference/<file>.md` syntax — don't preload everything.
 
-### Rule 2: Temporary Files (Use temp/ Folder)
+### Rule 3: Skills Discovery
 
-**All temporary files created during sessions MUST go in a `temp/` folder, NOT the repository root.**
+Before implementing anything non-trivial, check available skills (`.claude/skills/` and `~/.claude/skills/`). Skills are tested, opinionated workflows - prefer them over ad-hoc solutions.
 
-**ALWAYS:**
-- Create temporary files in `./temp/` relative to the current working directory
-- Create the `temp/` folder if it doesn't exist: `mkdir -p temp`
-- Use patterns like `temp/tmpclaude-{id}` instead of root-level `tmpclaude-{id}`
-- Clean up temporary files when no longer needed
+### Rule 4: Temporary Files Go in `temp/`
 
-**NEVER:**
-- Create `tmpclaude-*` files at the repository root
-- Leave temporary working files scattered in the codebase
-- Commit temporary files to git
+All temp files MUST be created under `./temp/` (gitignored), never the repo root. Create the directory if it doesn't exist. Never commit temp files.
 
-The `temp/` folder is gitignored.
+### Rule 5: Never Tamper with Security Software
 
-### Rule 3: Security (NEVER Disable Security Software)
+This machine may be Intune-managed. Claude must NEVER attempt to disable, stop, or modify Windows Defender, antivirus, or any security software. If a task seems blocked by security, STOP and ask the user - do not work around it.
 
-**This machine is Intune-managed. Security software is enterprise-controlled.**
+### Rule 6: Never Read Secrets
 
-**ABSOLUTELY FORBIDDEN - Claude must NEVER attempt to:**
-- Disable, stop, or modify Windows Defender in any way
-- Disable real-time protection, tamper protection, or any Defender feature
-- Modify Windows Security settings or policies
-- Disable or bypass any antivirus, antimalware, or security software
-- Run commands that affect security software state
-- Suggest workarounds that involve disabling security features
+Forbidden paths: `.env`, `.env.*`, `secrets/**`, `~/.ssh/**`, `~/.aws/**`, `**/credentials.json`, `**/service-account.json`. Use `.env.example` as a template only.
 
-**IF a task seems blocked by security software:**
-1. STOP immediately
-2. DO NOT attempt to disable or bypass security
-3. Inform the user that security software may be involved
-4. Suggest alternatives that work WITH security (exclusions via IT policy, etc.)
-5. Let the USER decide how to proceed through proper IT channels
+### Rule 7: Automatic Behaviors Live in Hooks, Not Memory
 
-### Rule 4: Azure Credentials (NEVER Hardcode)
+If you want Claude to "always do X when Y happens" (e.g., run a linter after every edit, post to Slack on session end, validate env vars before deploy), that **must** be a hook in `.claude/settings.json` — not a memory entry or a CLAUDE.md instruction.
 
-**This project uses Azure services extensively. All credentials MUST use managed identity or environment variables.**
+| Mechanism | Fires when | Best for |
+|-----------|-----------|----------|
+| **Hooks** (`settings.json`) | Deterministic events: PreToolUse, PostToolUse, UserPromptSubmit, Stop, etc. | "Always run X after Y" |
+| **Memory** (`MEMORY.md`) | Recalled by Claude when relevant context appears | Facts, preferences, prior decisions |
+| **CLAUDE.md** | Loaded into every session | Project-wide policies and conventions |
+| **Skills** | Auto-invoked when description matches user intent | Reusable workflows |
 
-- NEVER hardcode Azure connection strings, keys, or tokens
-- Use Azure Key Vault references in application settings
-- Use DefaultAzureCredential for service-to-service auth
-- Use MSAL for user authentication (Entra ID)
+If your rule says "from now on, when X, do Y" — write a hook. Memory cannot enforce; it only informs.
 
 ---
 
@@ -118,100 +102,27 @@ The `temp/` folder is gitignored.
 
 ## Startup Protocol
 
-Execute these steps at the start of EVERY session.
+Run at the start of EVERY session:
 
-### Step 1: Load or Create Project Configuration
+1. **Read this file** + any reference docs the task touches (`@.claude/reference/<topic>.md`).
 
-```bash
-# Check for existing config
-cat .claude/config.yaml 2>/dev/null
-```
+2. **Check git state**:
 
-**IF CONFIG EXISTS:** Read the `archon_project_id` and `project_title` values. Continue to Step 2.
+   ```bash
+   git status
+   git log --oneline -10
+   ```
 
-### Step 2: Load Archon Context
+3. **Check in-flight GitHub work** (if relevant):
 
-```python
-# Load project details and tasks
-find_projects(query="AssuranceNet")
-find_tasks(filter_by="status", filter_value="doing")
-```
+   ```bash
+   gh pr list --state open
+   gh issue list --state open --assignee @me
+   ```
 
-### Step 3: Review Git Status
+4. **Check `.claude/reference/session-context.md`** if it exists — picks up where the prior session left off.
 
-```bash
-git status
-git log --oneline -10
-```
-
-### Step 4: Project Status Briefing
-
-Provide the user with a status briefing:
-
-```
-STARTUP COMPLETE - SESSION READY
-
-PROJECT CONFIG:
-- Project Title: AssuranceNet Document Management System
-- Repository: E:\Repos\GitHub\MyDemoRepos\ucm-azure-native-demo
-
-CONTEXT LOADED:
-- Session Context: [Loaded/Missing]
-- Architecture Doc: [Loaded/Missing]
-- Archon Tasks: [X tasks total, Y in progress]
-
-GIT STATUS:
-- Branch: [current branch]
-- Uncommitted Changes: [yes/no]
-
-RECOMMENDED NEXT STEPS:
-- Option A: [Continue previous work]
-- Option B: [Start new task]
-- Option C: [Review/maintenance]
-
-AWAITING YOUR DIRECTION
-```
-
----
-
-## Archon Integration
-
-> **CRITICAL**: This project uses Archon MCP server for task management, project organization, document storage, and knowledge base search.
-
-### Task-Driven Development Cycle
-
-**MANDATORY task cycle before coding:**
-
-```
-1. Get Task    -> find_tasks(filter_by="status", filter_value="todo")
-2. Start Work  -> manage_task("update", task_id="...", status="doing")
-3. Research    -> rag_search_knowledge_base(query="...", match_count=5)
-4. Implement   -> Write code based on research
-5. Review      -> manage_task("update", task_id="...", status="review")
-6. Complete    -> manage_task("update", task_id="...", status="done")
-```
-
-**Status Flow:** `todo` -> `doing` -> `review` -> `done`
-
-**NEVER skip task updates. NEVER code without checking current tasks first.**
-
-### RAG Workflow (Research Before Implementation)
-
-```python
-# 1. Get available sources
-rag_get_available_sources()
-
-# 2. Search documentation (2-5 keywords ONLY)
-rag_search_knowledge_base(query="FastAPI middleware", source_id="src_xxx", match_count=5)
-
-# 3. Search code examples
-rag_search_code_examples(query="React hooks", match_count=3)
-
-# 4. Read full page if needed
-rag_read_full_page(page_id="...")
-```
-
-> **Rule**: Keep queries to 2-5 keywords for best results.
+5. **Brief the user** with: what was being worked on, uncommitted changes, recommended next step.
 
 ---
 
@@ -254,6 +165,20 @@ PRPs/
 +-- templates/         # Reusable templates
 ```
 
+---
+
+## Project Type: Backend API
+
+| Concern | Guidance |
+|---------|----------|
+| **Validate at boundaries** | Pydantic / DTO / Zod at request ingress. Trust internal code; don't re-validate between layers. |
+| **Error responses** | Generic message to client + `logger.exception(...)` server-side. Never `return {"error": str(exc)}` — leaks stack traces (CodeQL `py/stack-trace-exposure`). |
+| **Database access** | Parameterized queries only. Connection pooling at the app boundary, not per-request. |
+| **Auth** | At middleware level, not per-route. Never trust client-provided user IDs. |
+| **Integration tests** | Hit a real database (testcontainers or ephemeral instance). Mocking the DB hides migration breakage. |
+| **API versioning** | URL-versioned (`/v1/`) or header-versioned. Never silently break clients. |
+
+Long-running operations: return a job ID + status endpoint, not a hung connection.
 ---
 
 ## Code Style Guidelines
@@ -304,6 +229,20 @@ PRPs/
 
 ---
 
+## Code Style
+
+| Principle | Apply to |
+|-----------|----------|
+| Single responsibility | Functions, classes, modules |
+| Readable over clever | Default |
+| DRY | Extract after the third repetition, not the second |
+| Testable | Pure functions where possible |
+| Minimal dependencies | Add only when truly needed |
+
+[PRIMARY_LANGUAGE]-specific conventions: customize this section.
+
+---
+
 ## Testing Requirements
 
 ### Test Coverage Standards
@@ -321,6 +260,8 @@ PRPs/
 
 ```python
 # tests/backend/test_service.py
+
+> **Note:** This project previously used Archon v1 for task tracking. Archon v1 was archived by its author in April 2026. Historical Archon task records were exported to `.claude/migrated-archon-tasks.md` at migration time. Use TodoWrite + GitHub Issues going forward (see Rule 0).
 import pytest
 from app.services.document_service import DocumentService
 
@@ -353,6 +294,18 @@ describe('DocumentList', () => {
     });
 });
 ```
+
+---
+
+## Testing
+
+| Type | Target | Location |
+|------|--------|----------|
+| Unit | 80%+ on changed code | `tests/unit/` |
+| Integration | Critical paths | `tests/integration/` |
+| E2E | Happy paths + critical flows | `tests/e2e/` |
+
+AAA pattern: Arrange / Act / Assert. Run tests before marking a task `review`.
 
 ---
 
@@ -391,6 +344,15 @@ secrets/**
 **/service-account.json
 infra/parameters/*.prod.json
 ```
+
+---
+
+## Security
+
+Never commit: API keys, passwords, private keys, connection strings, `.env` files.
+Use environment variables. The `.env.example` in this repo lists required variables.
+
+Validate user input. Parameterize queries. Sanitize output. Keep deps updated.
 
 ---
 
@@ -435,115 +397,13 @@ infra/parameters/*.prod.json
 
 ## End of Session Protocol
 
-Execute these steps at the END of every session.
+1. Update `.claude/reference/session-context.md` with: what was completed, decisions made, next steps, blockers.
+2. Update or close any open `TodoWrite` items (mark completed as you go, don't batch).
+3. Commit uncommitted work with a descriptive message.
+4. If the work warrants a follow-up GitHub Issue (something you'll want to find later), open it now: `gh issue create`.
+5. Brief the user with a session summary.
 
-### Step 1: Update Session Memory
-
-```python
-manage_document("update",
-    project_id="[PROJECT_ID]",
-    document_id="[SESSION_DOC_ID]",
-    content={
-        "last_session": "[TODAY_DATE]",
-        "current_focus": "[What was worked on]",
-        "completed": ["[List of completed items]"],
-        "blockers": ["[Any blockers encountered]"],
-        "decisions_made": ["[Important decisions]"],
-        "next_steps": ["[Planned next actions]"]
-    }
-)
-```
-
-### Step 2: Update Task Statuses
-
-```python
-# Update any tasks that changed status
-manage_task("update", task_id="...", status="review")
-manage_task("update", task_id="...", status="done")
-```
-
-### Step 3: Commit Uncommitted Work
-
-```bash
-git status
-# If changes exist:
-git add [specific files]
-git commit -m "type(scope): description"
-```
-
-### Step 4: Provide Session Summary
-
-```
-SESSION COMPLETE - SUMMARY
-
-WORK COMPLETED:
-- [Item 1]
-- [Item 2]
-
-TASKS UPDATED:
-- Task [ID]: [old status] -> [new status]
-
-NEXT SESSION RECOMMENDATIONS:
-- [Suggested starting point]
-
-UNCOMMITTED CHANGES: [Yes/No]
-```
-
----
-
-## Quick Reference
-
-### Archon Commands
-
-```python
-# Projects
-find_projects(query="AssuranceNet")
-
-# Tasks
-find_tasks(filter_by="status", filter_value="todo")
-manage_task("update", task_id="...", status="doing")
-
-# Documents
-find_documents(project_id="...", query="Session")
-manage_document("create", project_id="...", title="...", content={...})
-
-# RAG
-rag_search_knowledge_base(query="...", match_count=5)
-rag_search_code_examples(query="...", match_count=3)
-```
-
-### Development Commands
-
-```bash
-# Backend
-cd src/backend && source .venv/bin/activate && uvicorn app.main:app --reload
-
-# Frontend
-cd src/frontend && npm run dev
-
-# Tests
-cd src/backend && pytest tests/ -v --cov
-cd src/frontend && npm test
-
-# Infrastructure
-az deployment group what-if -g rg-assurancenet-dev -f infra/main.bicep -p infra/parameters/dev.json
-```
-
-### Status Flow
-
-```
-todo -> doing -> review -> done
-```
-
-### Trigger Phrases
-
-| Phrase | Action |
-|--------|--------|
-| `/start` | Execute startup protocol |
-| `/status` | Show project status |
-| `/end` | Execute end of session protocol |
-| `/next` | Get next available task |
-| `/save` | Save current context |
+Always update `session-context.md` BEFORE `/clear` or `/compact` near 70%.
 
 ---
 
@@ -638,6 +498,78 @@ todo -> doing -> review -> done
 
 ---
 
+## Claude Code Capabilities Quick Reference
+
+Pointers to features that meaningfully change how a task gets done. Use these when the situation matches — don't reach for them by default.
+
+### Sub-agents and isolation
+
+| When | Tool | Notes |
+|------|------|-------|
+| Need independent research that would bloat main context | `Agent` with `subagent_type: Explore` or `general-purpose` | Returns a single message; main thread stays clean |
+| Need 2+ independent investigations | Multiple `Agent` calls in **one** message | Run in parallel |
+| Risky refactor that might fail | `Agent` with `isolation: worktree` | Auto-cleanup if no changes made |
+| Specialized work matches an agent | `Agent` with the right `subagent_type` | See agent registry in `.claude/agents/` |
+
+### Background tasks
+
+| When | How |
+|------|-----|
+| Command runs >5 min (CI watch, large build) | `Bash` with `run_in_background: true` |
+| Want notification on completion | The harness notifies automatically — **don't poll** |
+| Long agent run that doesn't block your next steps | `Agent` with `run_in_background: true` |
+
+### Context management
+
+| Action | Command / Syntax |
+|--------|------------------|
+| Check token usage | `/cost` |
+| Compress conversation (preserves intent) | `/compact` — update Session Context first if near 70% |
+| Hard reset | `/clear` — save context to disk first |
+| Load a reference doc on demand | `@.claude/reference/<file>.md` in user prompt |
+| Switch model mid-session | `/model opus` / `/model sonnet` / `/model haiku` |
+| Faster Opus output | `/fast` (Opus 4.6 / 4.7 only — no quality drop) |
+
+### Permission & settings
+
+| Need | Where |
+|------|-------|
+| Allow specific commands without prompts | `permissions.allow` in `.claude/settings.json` |
+| Per-tool restrictions for a skill/agent | `allowed-tools:` frontmatter |
+| Auto-accept edits in current session | `/permissions` → accept edits mode |
+| Plan-only mode (read, don't write) | `/permissions` → plan mode |
+
+### Model selection heuristic
+
+| Task type | Default model |
+|-----------|---------------|
+| Heavy reasoning, architecture, audits | Opus (Opus 4.7 has 1M context) |
+| Day-to-day coding, refactors | Sonnet |
+| Quick lookups, simple edits, batch ops | Haiku |
+
+### Skill & command frontmatter (modern fields)
+
+```yaml
+---
+name: my-skill
+description: When to use it (matters for auto-invocation)
+effort: high              # low|medium|high|max — reasoning depth
+context: fork             # Run in isolated subagent
+allowed-tools: Read, Grep # Restrict tool access
+argument-hint: "[file]"   # Shown in autocomplete
+hooks:                    # Skill-scoped hooks
+  PostToolUse:
+    - matcher: "Edit"
+      hooks: [{type: command, command: "./format.sh"}]
+---
+```
+
+### Memory system
+
+Per-project auto-memory lives in `~/.claude/projects/<project-slug>/memory/`. Index is `MEMORY.md`. Save user/feedback/project/reference notes there — never duplicate facts already in code or git history.
+
+---
+
 ## Project Structure
 
 ```
@@ -693,3 +625,53 @@ ucm-azure-native-demo/
 > **Version**: 2.0.0
 > **Last Updated**: 2026-03-10
 > **Template Source**: claude-code-tools
+
+---
+
+## Quick Reference
+
+| Phrase | Action |
+|--------|--------|
+| `/start` | Run startup protocol |
+| `/status` | Project status (git + open issues + recent commits) |
+| `/end` | End-of-session protocol (update session-context, commit, summarize) |
+| `@.claude/reference/<file>.md` | Load a specific reference doc into context on demand |
+
+---
+
+> **Template Version**: 4.0.0 | **Generated**: [CREATION_DATE]
+> **Source**: claude-code-tools project wizard
+
+## Task & Knowledge Workflow
+
+Mandatory before coding:
+
+```
+1. Plan            -> TodoWrite (breaks the work into trackable steps)
+2. Research        -> Use the project-kb skill (Context7 for libs, filesystem for project docs)
+3. Implement
+4. Test            -> Run the project's test command before claiming done
+5. Mark complete   -> Update TodoWrite as you finish each step
+6. Commit          -> Conventional commit format (see Git Workflow below)
+```
+
+For multi-day work: open a GitHub Issue with a clear acceptance bar, link PRs that move it forward, close it when shipped.
+
+Research discipline: 2-5 keyword queries beat one long question. Run multiple focused queries rather than one broad one. See the `project-kb` skill for the full lookup flow.
+
+---
+
+## Optional: Archon RAG
+
+> **Skip this section unless you have a substantial private/internal corpus** that genuinely needs vector search. For library docs (FastAPI, React, Pydantic, etc.), use the `project-kb` skill — it wraps Context7 MCP, which already indexes 1000+ libraries with fresher content than any local corpus.
+
+For projects with extracted internal documentation:
+
+1. Drop markdown files in `.claude/kb/` (gitignored if confidential, committed if public).
+2. The `project-kb` skill will grep them automatically.
+3. No vector store, no MCP server, no background indexing — just filesystem search with `Grep`.
+
+If you genuinely need vector retrieval (semantic similarity, fuzzy concept matching across a large private corpus), evaluate options like LanceDB-on-disk or a self-hosted Qdrant — but that's a deliberate, scoped infrastructure decision, not a default.
+
+---
+

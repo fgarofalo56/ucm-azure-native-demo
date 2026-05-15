@@ -118,9 +118,12 @@ Task [N.M] Status: [PASS/FAIL]
 
 **4d. Update Progress**
 
-```python
-# Update task status in Archon
-manage_task("update", task_id="[task_id]", status="done")
+Mark the corresponding TodoWrite item `completed`. If a parent GitHub Issue
+exists (created by `/prp-plan` step 5), check off the phase box:
+
+```bash
+# Optional: comment on parent issue
+gh issue comment <num> -b "Phase [N], Task [N.M] complete: <short summary>"
 ```
 
 #### Phase Validation Gate
@@ -149,13 +152,11 @@ Proceed to Phase [N+1]? (yes/fix/stop)
 
 Throughout implementation, maintain progress state:
 
-```python
-# Update Archon task for current phase
-manage_task("update", task_id="[phase_task_id]", status="doing")
-
-# Log progress to development log
-# Append to .claude/DEVELOPMENT_LOG.md
-```
+- Keep the TodoWrite list current: one item per phase, set the active phase to
+  `in_progress`, mark phases `completed` as they validate.
+- If a parent GitHub Issue exists, comment on it at phase boundaries.
+- Append a short note to `.claude/DEVELOPMENT_LOG.md` per phase, capturing
+  what was done and any non-obvious decisions.
 
 ### Step 6: Handle Blockers
 
@@ -216,24 +217,12 @@ OVERALL STATUS: [COMPLETE/INCOMPLETE]
 
 When implementation is complete:
 
-**8a. Update Archon**
-```python
-# Mark all phase tasks as done
-for task_id in phase_tasks:
-    manage_task("update", task_id=task_id, status="done")
-
-# Create completion summary in Archon documents
-manage_document(
-    "update",
-    project_id="[archon_project_id]",
-    document_id="[session_context_doc_id]",
-    content={
-        "last_completed": "[feature name]",
-        "completion_date": "[date]",
-        "notes": "[any important notes]"
-    }
-)
-```
+**8a. Close out tracking**
+- Mark every TodoWrite item `completed`.
+- If a parent GitHub Issue was created at plan time, close it (or let the
+  final PR's `Closes #N` line close it automatically on merge).
+- Optionally append a one-line entry to `.claude/SESSION_KNOWLEDGE.md` with
+  the feature name + completion date + brief notes.
 
 **8b. Move Plan to Completed**
 ```bash
@@ -308,9 +297,12 @@ Congratulations! The feature is ready for deployment.
 
 If implementation is interrupted (session end, context reset, etc.):
 
-1. Save current phase/task progress to SESSION_KNOWLEDGE.md
-2. Update Archon tasks with current status
-3. On resume, `/prp-implement` will detect partial completion and offer to continue
+1. Save current phase/task progress to `.claude/SESSION_KNOWLEDGE.md` (and
+   commit it so it survives session restart)
+2. Update the parent GitHub Issue's checkboxes if one exists
+3. On resume, `/prp-implement` reads the plan file's status header + the
+   SESSION_KNOWLEDGE notes + checked GitHub Issue boxes to detect partial
+   completion and offer to continue
 
 ```
 RESUMING IMPLEMENTATION
