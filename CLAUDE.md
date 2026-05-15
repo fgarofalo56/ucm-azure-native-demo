@@ -261,7 +261,6 @@ Long-running operations: return a job ID + status endpoint, not a hung connectio
 ```python
 # tests/backend/test_service.py
 
-> **Note:** This project previously used Archon v1 for task tracking. Archon v1 was archived by its author in April 2026. Historical Archon task records were exported to `.claude/migrated-archon-tasks.md` at migration time. Use TodoWrite + GitHub Issues going forward (see Rule 0).
 import pytest
 from app.services.document_service import DocumentService
 
