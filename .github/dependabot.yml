@@ -1,11 +1,10 @@
 version: 2
 updates:
-  # GitHub Actions
+  # ---------------- GitHub Actions ----------------
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "09:00"
       timezone: "America/New_York"
     open-pull-requests-limit: 5
@@ -14,17 +13,19 @@ updates:
       - "github-actions"
     commit-message:
       prefix: "chore(deps)"
+    # Batch all action bumps into a single PR.
     groups:
       actions:
         patterns:
           - "*"
 
-  # pip dependencies (if requirements.txt exists)
+  # ---------------- Python (backend + functions) ----------------
   - package-ecosystem: "pip"
-    directory: "/"
+    directories:
+      - "/src/backend"
+      - "/src/functions"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "09:00"
       timezone: "America/New_York"
     open-pull-requests-limit: 5
@@ -33,17 +34,24 @@ updates:
       - "python"
     commit-message:
       prefix: "chore(deps)"
+    # One grouped PR for all minor/patch bumps; majors are ignored below.
+    groups:
+      python-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
-      # Ignore major version updates for stability
+      # Ignore major version updates for stability (review manually).
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
-  # npm dependencies (if package.json exists)
+  # ---------------- npm (frontend) ----------------
   - package-ecosystem: "npm"
-    directory: "/"
+    directory: "/src/frontend"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "09:00"
       timezone: "America/New_York"
     open-pull-requests-limit: 5
@@ -52,7 +60,15 @@ updates:
       - "javascript"
     commit-message:
       prefix: "chore(deps)"
+    # One grouped PR for all minor/patch bumps; majors are ignored below.
+    groups:
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     ignore:
-      # Ignore major version updates for stability
+      # Ignore major version updates for stability (review manually).
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
