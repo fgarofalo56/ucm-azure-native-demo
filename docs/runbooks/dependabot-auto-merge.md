@@ -8,6 +8,12 @@ This repo auto-merges **minor and patch** Dependabot updates via
 longer mandates a human review, so the workflow enables auto-merge with the
 built-in `GITHUB_TOKEN`. All other gates remain in force.
 
+> **Repo setting required:** "Allow auto-merge" must be enabled
+> (`Settings → General → Pull Requests`, or
+> `gh api -X PATCH repos/<owner>/<repo> -F allow_auto_merge=true`). Without it
+> the workflow fails with `Auto merge is not allowed for this repository`.
+> It is currently **enabled**.
+
 ---
 
 ## What still gates a merge
