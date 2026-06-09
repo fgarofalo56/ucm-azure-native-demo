@@ -1,0 +1,42 @@
+name: Dependabot Auto-Merge
+
+# Enables auto-merge for Dependabot PRs that are minor or patch updates.
+# Major updates are ignored in dependabot.yml and, if one ever appears via a
+# security update, is intentionally left for a human to review.
+#
+# No App or PAT is required: `main` branch protection no longer mandates a human
+# review, so the built-in GITHUB_TOKEN can enable auto-merge directly. The
+# required STATUS CHECKS (tests, lint, secret scan) still gate every merge, and
+# strict "up to date with main" is still enforced.
+#
+# To restore the human-review requirement, see
+# docs/runbooks/dependabot-auto-merge.md (rollback section).
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    runs-on: ubuntu-latest
+    # Only act on Dependabot's own PRs.
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: Fetch Dependabot metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge (minor/patch only)
+        if: ${{ steps.meta.outputs.update-type != 'version-update:semver-major' }}
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Note skipped major update
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-major' }}
+        run: echo "::notice::Major update for ${{ steps.meta.outputs.dependency-names }} left for manual review."
