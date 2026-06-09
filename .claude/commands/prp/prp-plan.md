@@ -281,9 +281,11 @@ Component A --> Component B --> Component C
 
 ---
 
-## Archon Tasks
+## Phase Tracking
 
-Tasks to be created in Archon for tracking:
+Each phase in this plan file is its own trackable unit. In-session, the
+`/prp-implement` command opens a TodoWrite item per phase. For cross-session
+visibility, optionally open a parent GitHub Issue with phase checkboxes.
 
 1. **[Feature] - Phase 1: Foundation**
    - Description: Set up foundation for [feature]
@@ -311,35 +313,29 @@ From PRD, implementation is successful when:
 - [ ] [Metric 3 from PRD]
 ```
 
-### Step 5: Create Archon Tasks
+### Step 5: Optionally Open a Parent GitHub Issue
 
-Create tasks for each phase:
+For multi-day initiatives, create a parent issue that links the phases:
 
-```python
-# Read project ID from config
+```bash
+gh issue create \
+  --title "[Feature]: Implementation" \
+  --body "Implementation tracking issue for [Feature].
 
-# Phase 1
-manage_task(
-    "create",
-    project_id="[archon_project_id]",
-    title="[Feature] - Phase 1: Foundation",
-    description="Set up foundation for [feature]. See PRPs/plans/[feature-name]-plan.md",
-    feature="[feature-name]",
-    task_order=100
-)
+Plan: PRPs/plans/[feature-name]-plan.md
 
-# Phase 2
-manage_task(
-    "create",
-    project_id="[archon_project_id]",
-    title="[Feature] - Phase 2: Core Implementation",
-    description="Implement core functionality for [feature]",
-    feature="[feature-name]",
-    task_order=90
-)
+## Phases
+- [ ] Phase 1: Foundation
+- [ ] Phase 2: Core Implementation
+- [ ] Phase 3: Integration
+- [ ] Phase 4: Testing & Docs
 
-# Continue for other phases...
+Check off boxes as PRs land." \
+  --label "prp:[feature-name]"
 ```
+
+For single-session work, skip this — `/prp-implement` will create a TodoWrite
+list at execution time and that's enough.
 
 ### Step 6: Output Summary
 

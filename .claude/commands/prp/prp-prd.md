@@ -56,7 +56,7 @@ Search for:
 ```
 Check existing project documentation:
 - PRPs/prds/ for related PRDs
-- Architecture documents in Archon
+- `.claude/reference/architecture.md` (or other architecture docs in `.claude/reference/`)
 - README and setup documentation
 ```
 
@@ -252,20 +252,21 @@ Questions requiring answers before implementation:
 [External references and resources]
 ```
 
-### Step 4: Create Archon Task
+### Step 4: Open a Review Issue (optional)
 
-Create a task in Archon for the PRD review:
+If the PRD needs cross-session / cross-team review, open a GitHub Issue:
 
-```python
-manage_task(
-    "create",
-    project_id="[archon_project_id]",
-    title=f"Review PRD: [Feature Name]",
-    description="Review and approve the PRD for [Feature Name]. Located at PRPs/prds/[feature-name]-prd.md",
-    feature="documentation",
-    status="review"
-)
+```bash
+gh issue create \
+  --title "Review PRD: [Feature Name]" \
+  --body "Review and approve the PRD for [Feature Name].
+
+File: PRPs/prds/[feature-name]-prd.md" \
+  --label "prd,review"
 ```
+
+For purely in-session work (you're going to immediately run `/prp-plan`), skip
+this step — the PRD file itself is enough.
 
 ### Step 5: Output Summary
 
@@ -285,7 +286,7 @@ NEXT STEPS
 4. Get stakeholder approval
 5. Run /prp-plan to create implementation plan
 
-Created Archon task for PRD review.
+Review Issue: [URL if created, otherwise "none — PRD file is the artifact"]
 ```
 
 ## Quality Checklist

@@ -26,11 +26,12 @@ tool_categories:
 
 # Template profile (for selective sync)
 template_profile:
-  template_version: "2.0.0"
+  template_version: "3.1.0"
   project_type: "fullstack"
   primary_language: "python"
   framework: "fastapi"
-  skill_groups: ["core", "frontend", "backend", "cloud_infra", "testing"]
-  command_groups: ["base", "dev_tasks", "git", "project", "prp"]
+  skill_groups: ["core", "frontend", "backend", "framework_prp"]
+  command_groups: ["base", "prp"]
   dev_frameworks: ["prp"]
-  created_with: "manual-onboarding"
+  synced_with: "sync-claude-code.ps1"
+  last_synced: "2026-05-14"
