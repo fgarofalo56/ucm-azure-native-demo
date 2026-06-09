@@ -28,14 +28,6 @@
 
 ## 🏗️ Architecture
 
-### Live Environment (Dev)
-
-| Service | URL |
-|---------|-----|
-| **Frontend** | https://yellow-field-05ae8b90f.2.azurestaticapps.net |
-| **Backend API** | https://ca-api-assurancenet-dev.reddune-5bb251d3.eastus2.azurecontainerapps.io |
-| **API Health** | https://ca-api-assurancenet-dev.reddune-5bb251d3.eastus2.azurecontainerapps.io/api/v1/health |
-
 ```mermaid
 flowchart LR
     subgraph Client
