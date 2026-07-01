@@ -22,7 +22,7 @@ jobs:
     name: Validate Migrations
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Azure Login (OIDC)
         uses: azure/login@v3
